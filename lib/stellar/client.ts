@@ -7,6 +7,7 @@ import {
   Asset,
   BASE_FEE,
   StrKey,
+  Memo,
 } from "@stellar/stellar-sdk";
 import { STELLAR_CONFIG } from "./config";
 
@@ -105,10 +106,7 @@ export async function buildPaymentTransaction({
   );
 
   if (memo) {
-    builder = builder.addMemo(
-      // @ts-ignore
-      require("@stellar/stellar-sdk").Memo.text(memo.slice(0, 28))
-    );
+    builder = builder.addMemo(Memo.text(memo.slice(0, 28)));
   }
 
   const tx = builder.setTimeout(180).build();
