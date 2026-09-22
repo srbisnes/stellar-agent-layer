@@ -2,21 +2,42 @@ import { openai } from "@ai-sdk/openai";
 import { streamText, tool } from "ai";
 import { z } from "zod";
 import { SYSTEM_PROMPT } from "@/lib/agent/system-prompt";
+import { runDemoAgent } from "@/lib/agent/demo-agent";
 
 export const maxDuration = 60;
 
+function hasOpenAI(): boolean {
+  return Boolean(
+    process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith("sk-")
+  );
+}
+
+/**
+ * Demo path: returns a JSON payload the client understands when there is no OpenAI key.
+ * Format is intentionally simple so the investor pitch never depends on external APIs.
+ */
+async function handleDemo(req: Request) {
+  const body = await req.json();
+  const { messages, walletContext } = body;
+  const lastUser =
+    [...(messages || [])].reverse().find((m: any) => m.role === "user")
+      ?.content || "";
+
+  const reply = runDemoAgent(String(lastUser), walletContext);
+
+  return Response.json({
+    mode: "demo",
+    content: reply.content,
+    tools: reply.tools,
+  });
+}
+
 export async function POST(req: Request) {
-  if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_API_KEY.startsWith("sk-")) {
-    return new Response(
-      JSON.stringify({
-        error:
-          "OPENAI_API_KEY no configurada. Agregá la variable en Vercel → Settings → Environment Variables y redeploy.",
-      }),
-      {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+  // Clone request so we can read body in both branches safely
+  const cloned = req.clone();
+
+  if (!hasOpenAI()) {
+    return handleDemo(cloned);
   }
 
   const { messages, walletContext } = await req.json();
@@ -36,12 +57,10 @@ export async function POST(req: Request) {
         parameters: z.object({
           reason: z.string().optional(),
         }),
-        execute: async () => {
-          return {
-            action: "CREATE_WALLET",
-            message: "Client must generate and store the keypair locally.",
-          };
-        },
+        execute: async () => ({
+          action: "CREATE_WALLET",
+          message: "Client must generate and store the keypair locally.",
+        }),
       }),
       fund_wallet: tool({
         description: "Fund the active wallet via Friendbot (10,000 test XLM).",
@@ -72,9 +91,7 @@ export async function POST(req: Request) {
       }),
       get_balance: tool({
         description: "Fetch live balances from Horizon for a public key.",
-        parameters: z.object({
-          publicKey: z.string(),
-        }),
+        parameters: z.object({ publicKey: z.string() }),
         execute: async ({ publicKey }) => {
           try {
             const res = await fetch(
@@ -104,23 +121,19 @@ export async function POST(req: Request) {
           publicKey: z.string(),
           note: z.string().optional(),
         }),
-        execute: async (args) => {
-          return {
-            action: "ADD_CONTACT",
-            ...args,
-            message: "Client should persist this contact.",
-          };
-        },
+        execute: async (args) => ({
+          action: "ADD_CONTACT",
+          ...args,
+          message: "Client should persist this contact.",
+        }),
       }),
       list_contacts: tool({
         description: "Request the current contact list from the client.",
         parameters: z.object({}),
-        execute: async () => {
-          return {
-            action: "LIST_CONTACTS",
-            message: "Client will provide the contact list in the next turn if needed.",
-          };
-        },
+        execute: async () => ({
+          action: "LIST_CONTACTS",
+          message: "Client will provide the contact list in the next turn if needed.",
+        }),
       }),
       create_payment_intent: tool({
         description:
@@ -130,38 +143,33 @@ export async function POST(req: Request) {
           amount: z.string(),
           memo: z.string().optional(),
         }),
-        execute: async (args) => {
-          return {
-            action: "CREATE_PAYMENT_INTENT",
-            ...args,
-            message:
-              "Payment intent created. Waiting for human confirmation in the dashboard before any XLM is sent.",
-            requiresHumanConfirmation: true,
-          };
-        },
+        execute: async (args) => ({
+          action: "CREATE_PAYMENT_INTENT",
+          ...args,
+          message:
+            "Payment intent created. Waiting for human confirmation in the dashboard before any XLM is sent.",
+          requiresHumanConfirmation: true,
+        }),
       }),
       get_history: tool({
-        description: "Request recent history. Client will enrich with local + Horizon data.",
+        description:
+          "Request recent history. Client will enrich with local + Horizon data.",
         parameters: z.object({
           limit: z.number().optional().default(10),
         }),
-        execute: async ({ limit }) => {
-          return {
-            action: "GET_HISTORY",
-            limit,
-            message: "Client should fetch and display history.",
-          };
-        },
+        execute: async ({ limit }) => ({
+          action: "GET_HISTORY",
+          limit,
+          message: "Client should fetch and display history.",
+        }),
       }),
       get_wallet_info: tool({
         description: "Return wallet context that was injected.",
         parameters: z.object({}),
-        execute: async () => {
-          return {
-            action: "GET_WALLET_INFO",
-            context: walletContext || null,
-          };
-        },
+        execute: async () => ({
+          action: "GET_WALLET_INFO",
+          context: walletContext || null,
+        }),
       }),
     },
     maxSteps: 5,
