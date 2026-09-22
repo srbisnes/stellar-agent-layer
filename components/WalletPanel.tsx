@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, RefreshCw, Plus, Droplets, Copy, Check } from "lucide-react";
+import { Wallet, RefreshCw, Plus, Droplets, Copy, Check, ExternalLink } from "lucide-react";
 import { Card, CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
 import { walletEngine, WalletState } from "@/lib/engines/wallet-engine";
@@ -28,6 +28,10 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
 
   useEffect(() => {
     refresh();
+    const t = setInterval(() => {
+      if (walletEngine?.hasWallet()) refresh();
+    }, 15000);
+    return () => clearInterval(t);
   }, []);
 
   const create = async () => {
@@ -37,7 +41,7 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
     await walletEngine.createWallet();
     setWallet(walletEngine.getWallet());
     setLoading(false);
-    setMsg("Wallet creada. Ahora fúndala con Friendbot.");
+    setMsg("Keypair generada. Fondeá con Friendbot para activarla en Testnet.");
     onUpdate?.();
   };
 
@@ -46,6 +50,8 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
     setLoading(true);
     setMsg(null);
     const res = await walletEngine.fundWallet();
+    await new Promise((r) => setTimeout(r, 1200));
+    await walletEngine.refreshBalance();
     setWallet(walletEngine.getWallet());
     setLoading(false);
     setMsg(res.success ? res.message : `Error: ${res.message}`);
@@ -69,12 +75,7 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
         subtitle="Stellar Testnet · Ephemeral"
         action={
           wallet && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={refresh}
-              disabled={loading}
-            >
+            <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           )
@@ -84,7 +85,7 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
       {!wallet ? (
         <div className="space-y-4">
           <p className="text-sm text-gray-400">
-            No hay wallet activa. Crea una para empezar la demo.
+            Sin cuenta. Se genera una keypair ed25519 local (Testnet).
           </p>
           <Button onClick={create} disabled={loading} className="w-full">
             <Plus className="w-4 h-4" />
@@ -103,25 +104,34 @@ export function WalletPanel({ onUpdate }: { onUpdate?: () => void }) {
                 <code className="text-sm font-mono text-cyan-300 truncate">
                   {shortenAddress(wallet.publicKey, 6)}
                 </code>
-                <button onClick={copy} className="text-gray-500 hover:text-white">
+                <button onClick={copy} className="text-gray-500 hover:text-white" title="Copy">
                   {copied ? (
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
                   ) : (
                     <Copy className="w-3.5 h-3.5" />
                   )}
                 </button>
+                <a
+                  href={`https://stellar.expert/explorer/testnet/account/${wallet.publicKey}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-gray-500 hover:text-cyan-400"
+                  title="Stellar Expert"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
           </div>
 
           <div className="bg-black/40 rounded-xl p-4 border border-gray-800">
-            <p className="text-xs text-gray-500 mb-1">Balance</p>
+            <p className="text-xs text-gray-500 mb-1">Balance (Horizon)</p>
             <p className="text-2xl font-semibold text-white tracking-tight">
               {formatXLM(xlm)}{" "}
               <span className="text-sm text-gray-400 font-normal">XLM</span>
             </p>
             <p className="text-xs text-gray-600 mt-1">
-              {wallet.funded ? "Funded via Friendbot" : "Not funded yet"}
+              {wallet.funded ? "Funded · Testnet" : "Not funded yet"}
             </p>
           </div>
 

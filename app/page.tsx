@@ -9,18 +9,10 @@ import { AgentChat } from "@/components/AgentChat";
 import { AuthHeader } from "@/components/AuthHeader";
 import { UserScope } from "@/components/UserScope";
 
-const clerkEnabled =
-  typeof process !== "undefined" &&
-  Boolean(
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
-  );
-
 export default function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0);
   const bump = () => setRefreshKey((k) => k + 1);
 
-  // When Clerk is not configured we always show the full dashboard (demo mode)
   return (
     <UserScope>
       <div className="min-h-screen">
@@ -36,9 +28,6 @@ export default function Dashboard() {
                 </h1>
                 <p className="text-xs text-gray-500">
                   Real Agent · Intent Engine · Tool Calling · Testnet
-                  {!clerkEnabled && (
-                    <span className="ml-2 text-amber-400">· Demo mode</span>
-                  )}
                 </p>
               </div>
             </div>
@@ -57,7 +46,7 @@ export default function Dashboard() {
             <div className="lg:col-span-4 space-y-5">
               <WalletPanel onUpdate={bump} />
               <ContactPanel onUpdate={bump} />
-              <PendingPayments refreshKey={refreshKey} />
+              <PendingPayments refreshKey={refreshKey} onUpdate={bump} />
             </div>
 
             <div className="lg:col-span-5">
@@ -69,7 +58,7 @@ export default function Dashboard() {
 
               <div className="bg-agent-card border border-agent-border rounded-2xl p-5 text-xs text-gray-500 space-y-2">
                 <p className="font-semibold text-gray-400 uppercase tracking-wide text-[10px]">
-                  Hackathon Demo Flow
+                  Live Testnet flow
                 </p>
                 <ol className="list-decimal list-inside space-y-1.5">
                   <li>Create wallet → Fund with Friendbot</li>
@@ -79,23 +68,16 @@ export default function Dashboard() {
                   <li>Check History + Stellar Expert</li>
                 </ol>
                 <p className="pt-2 text-gray-600">
-                  All value transfers require explicit human confirmation. The
-                  agent never auto-sends funds.
+                  Todas las transferencias requieren confirmación humana. El agente
+                  nunca envía fondos solo. Las txs se firman y publican en Stellar Testnet.
                 </p>
-                {!clerkEnabled && (
-                  <p className="pt-2 text-amber-500/80">
-                    Running in public demo mode (no Clerk). Add Clerk + OpenAI
-                    keys in Vercel env vars for full multi-user support.
-                  </p>
-                )}
               </div>
             </div>
           </div>
         </main>
 
         <footer className="border-t border-gray-800/50 mt-12 py-6 text-center text-xs text-gray-600">
-          Stellar Agent Layer · Built for hackathon demo · Testnet only · No real
-          funds
+          Stellar Agent Layer · Stellar Testnet · Human confirmation required · No mainnet funds
         </footer>
       </div>
     </UserScope>

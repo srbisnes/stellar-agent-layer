@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, ArrowUpRight, ArrowDownLeft, Bot } from "lucide-react";
+import { History, ArrowUpRight, ArrowDownLeft, Bot, ExternalLink } from "lucide-react";
 import { Card, CardHeader } from "./ui/card";
 import { historyEngine, HistoryEntry } from "@/lib/engines/history-engine";
-import { formatXLM, shortenAddress } from "@/lib/utils";
+import { formatXLM } from "@/lib/utils";
 
 export function HistoryPanel({ refreshKey }: { refreshKey?: number }) {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -33,7 +33,7 @@ export function HistoryPanel({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <Card>
-      <CardHeader title="History Engine" subtitle="On-chain + agent intents" />
+      <CardHeader title="History Engine" subtitle="Horizon Testnet + intents" />
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
@@ -54,6 +54,16 @@ export function HistoryPanel({ refreshKey }: { refreshKey?: number }) {
                 <p className="text-xs text-gray-500">
                   {new Date(e.timestamp).toLocaleString()} · {e.status}
                 </p>
+                {e.txHash && (
+                  <a
+                    href={`https://stellar.expert/explorer/testnet/tx/${e.txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:underline mt-0.5"
+                  >
+                    Stellar Expert <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
               {e.amount && (
                 <div className="text-right">

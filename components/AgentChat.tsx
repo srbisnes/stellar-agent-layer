@@ -23,30 +23,59 @@ type ChatMessage = {
   content: string;
 };
 
+function renderContent(text: string) {
+  // Lightweight markdown: **bold** and [label](url)
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\)|`[^`]+`)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const token = m[0];
+    if (token.startsWith("**")) {
+      parts.push(
+        <strong key={key++} className="font-semibold text-white">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith("[")) {
+      const lm = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (lm) {
+        parts.push(
+          <a
+            key={key++}
+            href={lm[2]}
+            target="_blank"
+            rel="noreferrer"
+            className="text-cyan-400 hover:underline"
+          >
+            {lm[1]}
+          </a>
+        );
+      } else parts.push(token);
+    } else if (token.startsWith("`")) {
+      parts.push(
+        <code key={key++} className="text-cyan-300/90 text-xs font-mono">
+          {token.slice(1, -1)}
+        </code>
+      );
+    }
+    last = m.index + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 export function AgentChat({ onAction }: { onAction?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [walletCtx, setWalletCtx] = useState<any>(null);
-  const [demoMode, setDemoMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refreshCtx = () => {
-    const w = walletEngine?.getWallet();
-    setWalletCtx(
-      w
-        ? {
-            publicKey: w.publicKey,
-            funded: w.funded,
-            balances: w.balances,
-          }
-        : null
-    );
+    onAction?.();
   };
-
-  useEffect(() => {
-    refreshCtx();
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,11 +92,16 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         }
         if (result.autoFund) {
           await walletEngine?.fundWallet();
+          // Friendbot can take a moment
+          await new Promise((r) => setTimeout(r, 1500));
+          await walletEngine?.refreshBalance();
         }
       }
 
       if (result.action === "FUND_WALLET") {
         await walletEngine?.fundWallet();
+        await new Promise((r) => setTimeout(r, 1500));
+        await walletEngine?.refreshBalance();
       }
 
       if (result.action === "ADD_CONTACT" && result.name) {
@@ -90,12 +124,11 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
 
       if (result.action === "CREATE_PAYMENT_INTENT") {
         try {
-          // If destination is a name without contact yet, create one on the fly
           const dest = result.destination as string;
           if (dest && !dest.startsWith("G") && !contactEngine?.resolve(dest)) {
             const kp = generateKeypair();
             await fundWithFriendbot(kp.publicKey);
-            contactEngine?.add(dest, kp.publicKey, "Auto-created for payment demo");
+            contactEngine?.add(dest, kp.publicKey, "Auto-created recipient");
           }
           paymentEngine?.createIntent({
             destination: result.destination,
@@ -103,20 +136,15 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
             memo: result.memo,
           });
         } catch (e) {
-          console.error("Failed to create payment intent", e);
+          console.error("payment intent", e);
         }
       }
 
       if (result.action === "GET_BALANCE") {
         await walletEngine?.refreshBalance();
       }
-
-      if (result.success && result.publicKey && result.txHash) {
-        await walletEngine?.refreshBalance();
-      }
     }
     refreshCtx();
-    onAction?.();
   }
 
   async function sendMessage(text: string) {
@@ -158,17 +186,14 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
 
       if (contentType.includes("application/json")) {
         const data = await res.json();
-        if (data.mode === "demo" || data.content) {
-          setDemoMode(true);
+        if (data.content || data.mode === "demo") {
           if (data.tools?.length) {
             await processToolResults(data.tools);
           }
-          // Extra refresh after fund
           if (/fond|fund|crea.*wallet/i.test(trimmed)) {
             await new Promise((r) => setTimeout(r, 1200));
             await walletEngine?.refreshBalance();
             refreshCtx();
-            onAction?.();
           }
           setMessages((prev) => [
             ...prev,
@@ -183,11 +208,7 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         if (data.error) {
           setMessages((prev) => [
             ...prev,
-            {
-              id: `a-${Date.now()}`,
-              role: "assistant",
-              content: data.error,
-            },
+            { id: `a-${Date.now()}`, role: "assistant", content: data.error },
           ]);
           return;
         }
@@ -202,7 +223,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
           ...prev,
           { id: assistantId, role: "assistant", content: "" },
         ]);
-
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -223,7 +243,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
           );
         }
         refreshCtx();
-        onAction?.();
       } else {
         const errText = await res.text();
         setMessages((prev) => [
@@ -231,7 +250,7 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
           {
             id: `a-${Date.now()}`,
             role: "assistant",
-            content: `Error del agente (${res.status}): ${errText.slice(0, 200)}`,
+            content: `Error (${res.status}): ${errText.slice(0, 200)}`,
           },
         ]);
       }
@@ -259,10 +278,7 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         <div className="flex-1">
           <h2 className="font-semibold text-white text-sm">Stellar Agent</h2>
           <p className="text-xs text-gray-500">
-            Intent Engine · Tool Calling · Testnet
-            {demoMode && (
-              <span className="ml-2 text-amber-400">· Demo offline</span>
-            )}
+            Intent Engine · Tool Calling · Stellar Testnet
           </p>
         </div>
         {isLoading && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
@@ -272,7 +288,7 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         {messages.length === 0 && (
           <div className="space-y-4 py-6">
             <p className="text-sm text-gray-400 text-center">
-              Flujo listo para inversores — tocá una sugerencia:
+              Agente con tools reales sobre Stellar Testnet. Probá el flujo:
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {SUGGESTIONS.map((s) => (
@@ -309,7 +325,9 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
                   : "bg-gray-800/80 text-gray-200 rounded-bl-md border border-gray-700/50"
               )}
             >
-              {m.content || (
+              {m.content ? (
+                renderContent(m.content)
+              ) : (
                 <span className="text-gray-500 italic">Pensando…</span>
               )}
             </div>

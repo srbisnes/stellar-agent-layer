@@ -5,10 +5,17 @@ import { Clock, ShieldAlert } from "lucide-react";
 import { Card, CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
 import { paymentEngine, PaymentIntent } from "@/lib/engines/payment-engine";
+import { walletEngine } from "@/lib/engines/wallet-engine";
 import { formatXLM, shortenAddress } from "@/lib/utils";
 import { PaymentConfirmModal } from "./PaymentConfirmModal";
 
-export function PendingPayments({ refreshKey }: { refreshKey?: number }) {
+export function PendingPayments({
+  refreshKey,
+  onUpdate,
+}: {
+  refreshKey?: number;
+  onUpdate?: () => void;
+}) {
   const [pending, setPending] = useState<PaymentIntent[]>([]);
   const [selected, setSelected] = useState<PaymentIntent | null>(null);
 
@@ -20,28 +27,27 @@ export function PendingPayments({ refreshKey }: { refreshKey?: number }) {
     load();
   }, [refreshKey]);
 
-  const onConfirmed = (updated: PaymentIntent) => {
-    // Update local storage status via engine
-    const all = paymentEngine?.getAll() || [];
-    const idx = all.findIndex((p) => p.id === updated.id);
-    if (idx >= 0 && paymentEngine) {
-      // re-persist by recreating the list state through cancel/success path
-      // simplest: mutate and persist is internal; we just reload
-    }
-    // Force status update by writing back
+  const onConfirmed = async (updated: PaymentIntent) => {
+    // Persist success status through engine storage
     try {
-      const raw = localStorage.getItem("stellar-agent-pending-payments");
-      if (raw) {
-        const list: PaymentIntent[] = JSON.parse(raw);
-        const i = list.findIndex((p) => p.id === updated.id);
-        if (i >= 0) {
-          list[i] = updated;
-          localStorage.setItem("stellar-agent-pending-payments", JSON.stringify(list));
-        }
+      const all = paymentEngine?.getAll() || [];
+      const match = all.find((p) => p.id === updated.id);
+      if (match) {
+        match.status = updated.status;
+        match.txHash = updated.txHash;
+        match.confirmedAt = updated.confirmedAt;
+        // force persist via cancel noop path — re-read/write
+        const { storageSet } = await import("@/lib/storage");
+        storageSet(
+          "stellar-agent-pending-payments",
+          all.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+        );
       }
     } catch {}
+    await walletEngine?.refreshBalance();
     setSelected(null);
     load();
+    onUpdate?.();
   };
 
   const cancel = (id: string) => {

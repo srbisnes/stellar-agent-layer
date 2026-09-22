@@ -1,7 +1,8 @@
 /**
- * Offline Demo Agent — works without OPENAI_API_KEY.
- * Covers the full investor / hackathon script with deterministic tool results
- * so the UI (wallet, contacts, payment intents, history) stays fully functional.
+ * Intent agent for Stellar Testnet.
+ * When OPENAI_API_KEY is set, /api/agent uses GPT tool-calling.
+ * Otherwise this deterministic router drives the same tools so the
+ * full on-chain flow (wallet → Friendbot → intent → signed tx) still works.
  */
 
 export type DemoToolResult = {
@@ -49,10 +50,7 @@ function parseContact(text: string): { name: string; publicKey?: string } | null
   const nameOnly = t.match(
     /(?:agreg[aá]|añad[ií]|add)\s+(?:un\s+)?(?:contacto?|contact)\s+(?:llamado\s+)?([a-z0-9_]+)/
   );
-  if (nameOnly) {
-    return { name: capitalize(nameOnly[1]) };
-  }
-  // "alice" alone after add-ish verbs
+  if (nameOnly) return { name: capitalize(nameOnly[1]) };
   const short = t.match(/(?:contacto|contact)\s+([a-z0-9_]+)/);
   if (short) return { name: capitalize(short[1]) };
   return null;
@@ -76,7 +74,6 @@ export function runDemoAgent(
   const balance =
     walletContext?.balances?.find((b) => b.asset === "XLM")?.balance ?? "0";
 
-  // Create wallet
   if (
     /crea(r)?\s+(una\s+)?wallet|create\s+(a\s+)?wallet|nueva\s+wallet|genera(r)?\s+(una\s+)?wallet/.test(
       t
@@ -85,40 +82,39 @@ export function runDemoAgent(
     const alsoFund = /fund|fonda|fonde|friendbot/.test(t);
     return {
       content: alsoFund
-        ? "Perfecto. Creo una wallet efímera en **Stellar Testnet** y la fondeo con Friendbot (10.000 XLM de prueba). Mirá el panel Wallet."
-        : "Creando wallet efímera en Stellar Testnet. Después decime ‘fóndala’ o usá el botón Fund.",
+        ? "Genero una keypair ed25519 en **Stellar Testnet** y la activo con Friendbot (10.000 XLM). La clave secreta queda solo en tu navegador."
+        : "Genero una keypair efímera en Stellar Testnet. Después podés fondearla con Friendbot.",
       tools: [
         {
           toolName: "create_wallet",
           result: {
             action: "CREATE_WALLET",
             autoFund: alsoFund,
-            message: "Client must generate and store the keypair locally.",
+            message: "Client generates and stores the keypair locally.",
           },
         },
       ],
     };
   }
 
-  // Fund
   if (/fond|fund|friendbot|fonde/.test(t)) {
     if (!hasWallet) {
       return {
-        content: "No hay wallet. Creo una y la fondeo ahora.",
+        content: "No hay cuenta aún. Creo la wallet y la fondeo con Friendbot ahora.",
         tools: [
           {
             toolName: "create_wallet",
             result: {
               action: "CREATE_WALLET",
               autoFund: true,
-              message: "Client must generate and store the keypair locally.",
+              message: "Client generates and stores the keypair locally.",
             },
           },
         ],
       };
     }
     return {
-      content: `Fondeando \`${walletContext!.publicKey!.slice(0, 10)}…\` con Friendbot (10.000 XLM). El balance se actualiza en segundos.`,
+      content: `Solicito funding a Friendbot para \`${walletContext!.publicKey!.slice(0, 12)}…\`. En unos segundos Horizon debería mostrar ~10.000 XLM.`,
       tools: [
         {
           toolName: "fund_wallet",
@@ -131,18 +127,17 @@ export function runDemoAgent(
     };
   }
 
-  // Balance
   if (/balance|saldo|cu[aá]nto\s+tengo|how\s+much/.test(t)) {
     if (!hasWallet) {
       return {
-        content: "No hay wallet. Decime: **crea una wallet y fóndala**.",
+        content: "No hay wallet. Pedime crear y fondear una cuenta Testnet.",
         tools: [],
       };
     }
     return {
       content: funded
-        ? `**Balance:** ${balance} XLM (Testnet)\n**Public key:** \`${walletContext!.publicKey}\``
-        : `Wallet lista pero sin fondos.\n\`${walletContext!.publicKey}\`\nDecime **fóndala** para 10.000 XLM de prueba.`,
+        ? `Balance en Horizon Testnet: **${balance} XLM**\nCuenta: \`${walletContext!.publicKey}\`\n[Ver en Stellar Expert](https://stellar.expert/explorer/testnet/account/${walletContext!.publicKey})`
+        : `Cuenta creada pero aún no fondeada.\n\`${walletContext!.publicKey}\`\nPedime fondearla con Friendbot.`,
       tools: [
         {
           toolName: "get_balance",
@@ -152,43 +147,41 @@ export function runDemoAgent(
     };
   }
 
-  // Add contact — client will generate a REAL keypair if none provided
   const contact = parseContact(userMessage);
   if (contact || /agreg[aá].*contacto|add\s+contact|nuevo\s+contacto/.test(t)) {
     const name = contact?.name || "Alice";
     return {
       content: contact?.publicKey
-        ? `Contacto **${name}** guardado. Ya podés enviarle XLM.`
-        : `Creo el contacto **${name}** con una wallet Testnet real (keypair generado + Friendbot). Así el pago on-chain funciona en la demo de inversores.`,
+        ? `Guardé **${name}** (\`${contact.publicKey.slice(0, 8)}…\`) en la agenda. Ya podés crear un intent de pago.`
+        : `Creo el contacto **${name}**: genero una cuenta Testnet real, la fondeo con Friendbot y la guardo en la agenda para que el pago on-chain funcione de punta a punta.`,
       tools: [
         {
           toolName: "add_contact",
           result: {
             action: "ADD_CONTACT",
             name,
-            publicKey: contact?.publicKey || null, // null → client generates real KP
+            publicKey: contact?.publicKey || null,
             generateIfMissing: !contact?.publicKey,
             fundIfGenerated: true,
-            note: "Demo contact (Testnet)",
+            note: "Testnet contact",
           },
         },
       ],
     };
   }
 
-  // Payment intent
   const payment = parsePayment(userMessage);
   if (payment || /envia|manda|pag[aá]|transfer|send\s+\d/.test(t)) {
     if (!hasWallet) {
       return {
-        content: "Primero una wallet fondeada. Decime: **crea una wallet y fóndala**.",
+        content: "Primero necesitás una cuenta fondeada en Testnet.",
         tools: [
           {
             toolName: "create_wallet",
             result: {
               action: "CREATE_WALLET",
               autoFund: true,
-              message: "Client must generate and store the keypair locally.",
+              message: "Client generates and stores the keypair locally.",
             },
           },
         ],
@@ -197,7 +190,7 @@ export function runDemoAgent(
     const amount = payment?.amount || "5";
     const destination = payment?.destination || "Alice";
     return {
-      content: `**Intent de pago creado**\n• ${amount} XLM → **${destination}**\n\nEl dinero **no se movió**. Confirmá en el panel **Pending Payments** (human gate) para firmar y enviar la tx en Testnet.`,
+      content: `**Payment intent**\n• ${amount} XLM → **${destination}**\n• Red: Stellar Testnet\n\nNo firmé ni envié nada. Confirmá en **Pending Confirmations** para construir la operación Payment, firmar con tu clave local y submit a Horizon.`,
       tools: [
         {
           toolName: "create_payment_intent",
@@ -205,7 +198,7 @@ export function runDemoAgent(
             action: "CREATE_PAYMENT_INTENT",
             destination,
             amount,
-            memo: "Investor demo",
+            memo: "Stellar Agent Layer",
             requiresHumanConfirmation: true,
           },
         },
@@ -216,20 +209,17 @@ export function runDemoAgent(
   if (/historial|history|movimientos|transaccion/.test(t)) {
     return {
       content:
-        "Abrí el panel **History**: combina intents locales + pagos Horizon Testnet.",
-      tools: [{ toolName: "get_history", result: { action: "GET_HISTORY", limit: 10 } }],
+        "El panel **History** combina intents del agente con pagos reales leídos desde Horizon Testnet. Cada tx exitosa tiene link a Stellar Expert.",
+      tools: [{ toolName: "get_history", result: { action: "GET_HISTORY", limit: 15 } }],
     };
   }
 
   if (/wallet|cuenta|mi\s+clave|public\s+key|direccion/.test(t)) {
     if (!hasWallet) {
-      return {
-        content: "Sin wallet. Decime: **crea una wallet y fóndala**.",
-        tools: [],
-      };
+      return { content: "Sin cuenta activa. Pedime crear una wallet Testnet.", tools: [] };
     }
     return {
-      content: `**Wallet**\n• Public: \`${walletContext!.publicKey}\`\n• Fondeada: ${funded ? "sí" : "no"}\n• Balance: ${balance} XLM`,
+      content: `**Cuenta activa**\n• Public: \`${walletContext!.publicKey}\`\n• Fondeada: ${funded ? "sí" : "no"}\n• Balance: ${balance} XLM\n• [Stellar Expert](https://stellar.expert/explorer/testnet/account/${walletContext!.publicKey})`,
       tools: [
         {
           toolName: "get_wallet_info",
@@ -240,16 +230,15 @@ export function runDemoAgent(
   }
 
   return {
-    content: `**Stellar Agent Layer** — modo demo listo para inversores (sin OpenAI).
+    content: `Soy el **Stellar Agent** sobre **Stellar Testnet**.
 
-Script sugerido:
-1. **Crea una wallet y fóndala**
-2. **Agrega un contacto llamado Alice**
-3. **Envía 5 XLM a Alice**
-4. Confirmá el pago en *Pending Payments*
-5. **Mostrame el historial** / Stellar Expert Testnet
+Puedo:
+• Crear y fondear cuentas (Friendbot)
+• Administrar contactos
+• Crear payment intents (vos confirmás y firmás)
+• Leer balances e historial desde Horizon
 
-Todo corre en **Stellar Testnet**. Los pagos requieren confirmación humana.`,
+Probá: **“Crea una wallet y fóndala”** → **“Agrega contacto Alice”** → **“Envía 5 XLM a Alice”** → confirmá el pago.`,
     tools: [],
   };
 }
