@@ -1,14 +1,15 @@
 /**
  * Wallet Engine — manages keypairs, balances, funding via Friendbot.
  * Never stores secrets in plain localStorage in production; this is demo-safe (testnet only).
+ * Data is scoped per Clerk userId.
  */
 
 import {
   generateKeypair,
   fundWithFriendbot,
   getAccountBalance,
-  isValidPublicKey,
 } from "@/lib/stellar/client";
+import { storageGet, storageSet, storageRemove, getCurrentUserId } from "@/lib/storage";
 
 export interface WalletState {
   publicKey: string;
@@ -18,41 +19,42 @@ export interface WalletState {
   createdAt: string;
 }
 
-const STORAGE_KEY = "stellar-agent-wallet";
+const STORAGE_BASE = "stellar-agent-wallet";
 
 export class WalletEngine {
   private state: WalletState | null = null;
+  private boundUserId: string | null = null;
 
-  constructor() {
-    if (typeof window !== "undefined") {
+  private ensureUserScope() {
+    const uid = getCurrentUserId();
+    if (uid !== this.boundUserId) {
+      this.boundUserId = uid;
       this.load();
     }
   }
 
   private load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) this.state = JSON.parse(raw);
-    } catch {
-      this.state = null;
-    }
+    this.state = storageGet<WalletState | null>(STORAGE_BASE, null);
   }
 
   private persist() {
-    if (typeof window !== "undefined" && this.state) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    if (this.state) {
+      storageSet(STORAGE_BASE, this.state);
     }
   }
 
   getWallet(): WalletState | null {
+    this.ensureUserScope();
     return this.state;
   }
 
   hasWallet(): boolean {
+    this.ensureUserScope();
     return !!this.state?.publicKey;
   }
 
   async createWallet(): Promise<WalletState> {
+    this.ensureUserScope();
     const kp = generateKeypair();
     this.state = {
       publicKey: kp.publicKey,
@@ -66,6 +68,7 @@ export class WalletEngine {
   }
 
   async fundWallet(): Promise<{ success: boolean; message: string; txHash?: string }> {
+    this.ensureUserScope();
     if (!this.state) throw new Error("No wallet");
     const result = await fundWithFriendbot(this.state.publicKey);
     if (result.success) {
@@ -77,6 +80,7 @@ export class WalletEngine {
   }
 
   async refreshBalance() {
+    this.ensureUserScope();
     if (!this.state) return null;
     const res = await getAccountBalance(this.state.publicKey);
     if (res.success) {
@@ -88,7 +92,7 @@ export class WalletEngine {
   }
 
   importWallet(secretKey: string): WalletState {
-    // Basic validation via public key derivation would be better; for demo we accept
+    this.ensureUserScope();
     const { Keypair } = require("@stellar/stellar-sdk");
     const kp = Keypair.fromSecret(secretKey);
     this.state = {
@@ -103,20 +107,22 @@ export class WalletEngine {
   }
 
   clearWallet() {
+    this.ensureUserScope();
     this.state = null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    storageRemove(STORAGE_BASE);
   }
 
   getPublicKey(): string | null {
+    this.ensureUserScope();
     return this.state?.publicKey ?? null;
   }
 
   /** Only for signed operations inside the agent layer */
   getSecretKey(): string | null {
+    this.ensureUserScope();
     return this.state?.secretKey ?? null;
   }
 }
 
-export const walletEngine = typeof window !== "undefined" ? new WalletEngine() : null;
+export const walletEngine =
+  typeof window !== "undefined" ? new WalletEngine() : null;

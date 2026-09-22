@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,8 +14,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body className="min-h-screen antialiased">{children}</body>
-    </html>
+    <ClerkProvider
+      appearance={{
+        variables: {
+          colorPrimary: "#22d3ee",
+          colorBackground: "#0a0f1a",
+          colorInputBackground: "#111827",
+          colorInputText: "#e5e7eb",
+          colorText: "#e5e7eb",
+          colorTextSecondary: "#9ca3af",
+          borderRadius: "0.75rem",
+        },
+        elements: {
+          card: "bg-[#111827] border border-[#1f2937]",
+          headerTitle: "text-white",
+          headerSubtitle: "text-gray-400",
+          socialButtonsBlockButton:
+            "bg-gray-800 border-gray-700 text-white hover:bg-gray-700",
+          formButtonPrimary: "bg-cyan-500 hover:bg-cyan-400 text-black",
+          footerActionLink: "text-cyan-400 hover:text-cyan-300",
+        },
+      }}
+    >
+      <html lang="es">
+        <body className="min-h-screen antialiased">{children}</body>
+      </html>
+    </ClerkProvider>
   );
 }

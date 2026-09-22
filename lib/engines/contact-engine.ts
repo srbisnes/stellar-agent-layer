@@ -1,7 +1,9 @@
 /**
  * Contact Engine — address book for frequent recipients.
- * Stores name + public key pairs.
+ * Data is scoped per Clerk userId.
  */
+
+import { storageGet, storageSet, getCurrentUserId } from "@/lib/storage";
 
 export interface Contact {
   id: string;
@@ -12,31 +14,30 @@ export interface Contact {
   lastUsedAt?: string;
 }
 
-const STORAGE_KEY = "stellar-agent-contacts";
+const STORAGE_BASE = "stellar-agent-contacts";
 
 export class ContactEngine {
   private contacts: Contact[] = [];
+  private boundUserId: string | null = null;
 
-  constructor() {
-    if (typeof window !== "undefined") this.load();
+  private ensureUserScope() {
+    const uid = getCurrentUserId();
+    if (uid !== this.boundUserId) {
+      this.boundUserId = uid;
+      this.load();
+    }
   }
 
   private load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) this.contacts = JSON.parse(raw);
-    } catch {
-      this.contacts = [];
-    }
+    this.contacts = storageGet<Contact[]>(STORAGE_BASE, []);
   }
 
   private persist() {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.contacts));
-    }
+    storageSet(STORAGE_BASE, this.contacts);
   }
 
   list(): Contact[] {
+    this.ensureUserScope();
     return [...this.contacts].sort(
       (a, b) =>
         new Date(b.lastUsedAt || b.createdAt).getTime() -
@@ -45,19 +46,23 @@ export class ContactEngine {
   }
 
   getById(id: string): Contact | undefined {
+    this.ensureUserScope();
     return this.contacts.find((c) => c.id === id);
   }
 
   findByName(name: string): Contact | undefined {
+    this.ensureUserScope();
     const n = name.toLowerCase().trim();
     return this.contacts.find((c) => c.name.toLowerCase() === n);
   }
 
   findByPublicKey(pk: string): Contact | undefined {
+    this.ensureUserScope();
     return this.contacts.find((c) => c.publicKey === pk);
   }
 
   add(name: string, publicKey: string, note?: string): Contact {
+    this.ensureUserScope();
     if (this.findByPublicKey(publicKey)) {
       throw new Error("Contact with this public key already exists");
     }
@@ -74,6 +79,7 @@ export class ContactEngine {
   }
 
   update(id: string, data: Partial<Pick<Contact, "name" | "note" | "publicKey">>) {
+    this.ensureUserScope();
     const idx = this.contacts.findIndex((c) => c.id === id);
     if (idx === -1) throw new Error("Contact not found");
     this.contacts[idx] = { ...this.contacts[idx], ...data };
@@ -82,11 +88,13 @@ export class ContactEngine {
   }
 
   remove(id: string) {
+    this.ensureUserScope();
     this.contacts = this.contacts.filter((c) => c.id !== id);
     this.persist();
   }
 
   markUsed(id: string) {
+    this.ensureUserScope();
     const c = this.getById(id);
     if (c) {
       c.lastUsedAt = new Date().toISOString();
@@ -95,10 +103,10 @@ export class ContactEngine {
   }
 
   resolve(nameOrAddress: string): { publicKey: string; contact?: Contact } | null {
+    this.ensureUserScope();
     const byName = this.findByName(nameOrAddress);
     if (byName) return { publicKey: byName.publicKey, contact: byName };
 
-    // crude public key check
     if (nameOrAddress.startsWith("G") && nameOrAddress.length === 56) {
       return { publicKey: nameOrAddress };
     }

@@ -1,6 +1,7 @@
 /**
  * Payment Engine — builds & submits payments ONLY after human confirmation.
  * Never auto-signs or auto-submits value-moving transactions.
+ * Data is scoped per Clerk userId.
  */
 
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/lib/stellar/client";
 import { contactEngine } from "./contact-engine";
 import { walletEngine } from "./wallet-engine";
+import { storageGet, storageSet, getCurrentUserId } from "@/lib/storage";
 
 export type PaymentStatus =
   | "pending_confirmation"
@@ -34,35 +36,35 @@ export interface PaymentIntent {
   sourcePublicKey: string;
 }
 
-const PENDING_KEY = "stellar-agent-pending-payments";
+const STORAGE_BASE = "stellar-agent-pending-payments";
 
 export class PaymentEngine {
   private pending: PaymentIntent[] = [];
+  private boundUserId: string | null = null;
 
-  constructor() {
-    if (typeof window !== "undefined") this.load();
+  private ensureUserScope() {
+    const uid = getCurrentUserId();
+    if (uid !== this.boundUserId) {
+      this.boundUserId = uid;
+      this.load();
+    }
   }
 
   private load() {
-    try {
-      const raw = localStorage.getItem(PENDING_KEY);
-      if (raw) this.pending = JSON.parse(raw);
-    } catch {
-      this.pending = [];
-    }
+    this.pending = storageGet<PaymentIntent[]>(STORAGE_BASE, []);
   }
 
   private persist() {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(PENDING_KEY, JSON.stringify(this.pending));
-    }
+    storageSet(STORAGE_BASE, this.pending);
   }
 
   getPending(): PaymentIntent[] {
+    this.ensureUserScope();
     return this.pending.filter((p) => p.status === "pending_confirmation");
   }
 
   getAll(): PaymentIntent[] {
+    this.ensureUserScope();
     return [...this.pending].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -77,10 +79,11 @@ export class PaymentEngine {
     amount,
     memo,
   }: {
-    destination: string; // name or G...
+    destination: string;
     amount: string;
     memo?: string;
   }): PaymentIntent {
+    this.ensureUserScope();
     if (!walletEngine?.hasWallet()) {
       throw new Error("No wallet available. Create or fund a wallet first.");
     }
@@ -119,6 +122,7 @@ export class PaymentEngine {
   }
 
   cancel(id: string) {
+    this.ensureUserScope();
     const p = this.pending.find((x) => x.id === id);
     if (p && p.status === "pending_confirmation") {
       p.status = "cancelled";
@@ -131,6 +135,7 @@ export class PaymentEngine {
    * Only this method signs and submits.
    */
   async confirmAndSubmit(id: string): Promise<PaymentIntent> {
+    this.ensureUserScope();
     const intent = this.pending.find((x) => x.id === id);
     if (!intent) throw new Error("Payment intent not found");
     if (intent.status !== "pending_confirmation") {
@@ -160,7 +165,6 @@ export class PaymentEngine {
         intent.status = "success";
         intent.txHash = result.hash;
 
-        // mark contact used
         const contact = contactEngine?.findByPublicKey(intent.destination);
         if (contact) contactEngine?.markUsed(contact.id);
       } else {
