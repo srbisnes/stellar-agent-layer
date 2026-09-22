@@ -6,24 +6,13 @@ const clerkEnabled = Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
 );
 
-// Public routes always allowed (APIs + auth pages)
-const publicPaths = [
-  "/sign-in",
-  "/sign-up",
-  "/api/friendbot",
-  "/api/telegram",
-  "/api/whatsapp",
-  "/api/agent",
-  "/api/payment",
-];
-
 export default async function middleware(request: NextRequest) {
-  // No Clerk keys → fully public demo mode
+  // Public demo mode — no auth
   if (!clerkEnabled) {
     return NextResponse.next();
   }
 
-  // Dynamic import so the build does not fail when Clerk env is absent
+  // Clerk configured: use official middleware
   const { clerkMiddleware, createRouteMatcher } = await import(
     "@clerk/nextjs/server"
   );
@@ -38,15 +27,11 @@ export default async function middleware(request: NextRequest) {
     "/api/payment(.*)",
   ]);
 
-  // Re-use official clerkMiddleware for proper session handling
-  const handler = clerkMiddleware(async (auth, req) => {
+  return clerkMiddleware(async (auth, req) => {
     if (!isPublicRoute(req)) {
       await auth.protect();
     }
-  });
-
-  // @ts-expect-error – clerkMiddleware signature matches Next middleware
-  return handler(request, {} as any);
+  })(request, {} as any);
 }
 
 export const config = {

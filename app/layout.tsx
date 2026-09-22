@@ -12,22 +12,24 @@ const clerkEnabled = Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
 );
 
+function RootHtml({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es">
+      <body className="min-h-screen antialiased">{children}</body>
+    </html>
+  );
+}
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const body = (
-    <html lang="es">
-      <body className="min-h-screen antialiased">{children}</body>
-    </html>
-  );
-
   if (!clerkEnabled) {
-    return body;
+    return <RootHtml>{children}</RootHtml>;
   }
 
-  // Dynamic require keeps the module optional at build time when keys are absent
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ClerkProvider } = require("@clerk/nextjs");
 
   return (
@@ -53,7 +55,7 @@ export default function RootLayout({
         },
       }}
     >
-      {body}
+      <RootHtml>{children}</RootHtml>
     </ClerkProvider>
   );
 }
