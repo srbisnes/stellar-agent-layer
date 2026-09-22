@@ -1,20 +1,33 @@
 "use client";
 
-import {
-  SignInButton,
-  SignUpButton,
-  UserButton,
-  useUser,
-} from "@clerk/nextjs";
 import { Button } from "./ui/button";
 
+const clerkEnabled = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
+);
+
 export function AuthHeader() {
+  if (!clerkEnabled) {
+    return (
+      <span className="text-xs text-amber-400/80 border border-amber-500/20 rounded-full px-2.5 py-1">
+        Demo
+      </span>
+    );
+  }
+
+  // Lazy require so the module is only evaluated when Clerk is configured
+  const {
+    SignInButton,
+    SignUpButton,
+    UserButton,
+    useUser,
+  } = require("@clerk/nextjs");
+
   const { isSignedIn, user, isLoaded } = useUser();
 
   if (!isLoaded) {
-    return (
-      <div className="h-8 w-20 rounded-lg bg-gray-800 animate-pulse" />
-    );
+    return <div className="h-8 w-20 rounded-lg bg-gray-800 animate-pulse" />;
   }
 
   if (!isSignedIn) {

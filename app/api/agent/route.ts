@@ -6,9 +6,21 @@ import { SYSTEM_PROMPT } from "@/lib/agent/system-prompt";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_API_KEY.startsWith("sk-")) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "OPENAI_API_KEY no configurada. Agregá la variable en Vercel → Settings → Environment Variables y redeploy.",
+      }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   const { messages, walletContext } = await req.json();
 
-  // Wallet context is injected from the client so the model knows current state
   const contextNote = walletContext
     ? `\n\n[Current wallet context]\nPublic key: ${walletContext.publicKey || "none"}\nFunded: ${walletContext.funded}\nBalances: ${JSON.stringify(walletContext.balances || [])}`
     : "\n\n[No wallet yet]";
@@ -25,8 +37,6 @@ export async function POST(req: Request) {
           reason: z.string().optional(),
         }),
         execute: async () => {
-          // Actual key generation happens client-side for security of secret.
-          // We signal the client to perform the action.
           return {
             action: "CREATE_WALLET",
             message: "Client must generate and store the keypair locally.",

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,11 +7,29 @@ export const metadata: Metadata = {
     "Real AI Agent + Intent Engine + Tool Calling on Stellar Testnet. Wallet, Contact, Payment & History Engines with human-in-the-loop confirmation.",
 };
 
+const clerkEnabled = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith("pk_")
+);
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const body = (
+    <html lang="es">
+      <body className="min-h-screen antialiased">{children}</body>
+    </html>
+  );
+
+  if (!clerkEnabled) {
+    return body;
+  }
+
+  // Dynamic require keeps the module optional at build time when keys are absent
+  const { ClerkProvider } = require("@clerk/nextjs");
+
   return (
     <ClerkProvider
       appearance={{
@@ -36,9 +53,7 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="es">
-        <body className="min-h-screen antialiased">{children}</body>
-      </html>
+      {body}
     </ClerkProvider>
   );
 }
