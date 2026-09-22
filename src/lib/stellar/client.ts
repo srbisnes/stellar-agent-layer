@@ -15,6 +15,7 @@ import {
   TESTNET_USDC_ISSUER,
   TESTNET_ARST_ISSUER,
 } from "./config";
+import type { NetworkStats } from "@/types";
 
 export const server = new Horizon.Server(HORIZON_URL);
 
@@ -90,7 +91,6 @@ export async function getAccountBalance(publicKey: string) {
 }
 
 export function getUsdcArsRate(): { rate: number; timestamp: string; spreadPercent: number } {
-  // Demo rate (update with real oracle later)
   return {
     rate: 1285.5,
     timestamp: new Date().toISOString(),
@@ -215,5 +215,3 @@ export async function getNetworkStats(): Promise<NetworkStats | null> {
     return null;
   }
 }
-
-import type { NetworkStats } from "@/types";
