@@ -5,38 +5,34 @@
 Intent Engine + Tool Calling + Wallet / Contact / Payment / History Engines on **Stellar Testnet**, with **mandatory human confirmation** before any payment is signed and submitted.
 
 **Channels**
-- 🌐 **Web** — dashboard with Google login (Clerk)
-- ✈️ **Telegram** — full agent in chat with Confirm / Cancel buttons
 
-Ready for hackathon demos.
+| Channel | Status | Notes |
+|---------|--------|-------|
+| 🌐 **Web** | ✅ | Google login (Clerk) + dashboard |
+| ✈️ **Telegram** | ✅ | Bot + Confirm/Cancel buttons |
+| 📱 **WhatsApp** | ✅ | Business Cloud API + interactive buttons |
+| 📸 Instagram | Planned | Meta Messaging API |
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│              Channels: Web (Clerk) · Telegram               │
-├─────────────┬───────────────────────┬───────────────────────┤
-│ Wallet      │   Stellar Agent       │  History Engine       │
-│ Engine      │   (Intent + Tools)    │                       │
-│ Contact     │                       │  Pending              │
-│ Engine      │   create_wallet       │  Confirmations        │
-│             │   fund_wallet         │  (Human Gate)         │
-│             │   add_contact         │                       │
-│             │   create_payment_     │                       │
-│             │     intent  ──────────┼──► Confirm & Sign     │
-│             │   get_balance         │                       │
-│             │   get_history         │                       │
-└─────────────┴───────────────────────┴───────────────────────┘
-                              │
-                              ▼
-              Stellar SDK + Horizon Testnet + Friendbot
+Channels: Web (Clerk) · Telegram · WhatsApp Business
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│  Stellar Agent (Intent Engine + Tool Calling)             │
+│  Wallet · Contact · Payment · History Engines             │
+│  Human confirmation gate (modal / botones)                │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+  Stellar SDK + Horizon Testnet + Friendbot
 ```
 
 ### Safety
 
 - Payment tools only create **intents**.
-- Human confirmation is required before signing (web modal or Telegram inline buttons).
-- Secret keys stay client-side (web) or in server session (Telegram demo).
+- Human confirmation required before signing (web modal, Telegram inline buttons, WhatsApp interactive buttons).
 - Testnet only. No mainnet secrets.
 
 ## Quick Start (Web)
@@ -48,8 +44,6 @@ npm install
 cp .env.example .env.local
 ```
 
-Fill:
-
 ```env
 OPENAI_API_KEY=sk-...
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
@@ -60,77 +54,106 @@ CLERK_SECRET_KEY=sk_test_...
 npm run dev
 ```
 
-Open http://localhost:3000 → Sign up with Google.
+## Telegram
 
-## Telegram Bot Setup
+1. [@BotFather](https://t.me/BotFather) → `/newbot` → copy token  
+2. Env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SETUP_SECRET`, `NEXT_PUBLIC_APP_URL`  
+3. Deploy → register webhook:
 
-### 1. Create the bot
-1. Open Telegram → talk to [@BotFather](https://t.me/BotFather)
-2. Send `/newbot` and follow the steps
-3. Copy the **token**
+```bash
+curl -X POST https://YOUR_DOMAIN/api/telegram/setup \
+  -H "x-setup-secret: YOUR_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://YOUR_DOMAIN/api/telegram/webhook"}'
+```
+
+## WhatsApp Business Cloud API
+
+### 1. Meta setup
+
+1. Go to [Meta for Developers](https://developers.facebook.com/)
+2. **Create App** → type **Business**
+3. Add product **WhatsApp**
+4. In WhatsApp → **API Setup**:
+   - Copy **Phone number ID**
+   - Copy **Temporary access token** (or generate a permanent System User token for production)
+5. Add your personal number as a **test recipient** (required while in dev mode)
 
 ### 2. Env vars
 
 ```env
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-TELEGRAM_SETUP_SECRET=una-clave-secreta-tuya
-NEXT_PUBLIC_APP_URL=https://tu-app.vercel.app
+WHATSAPP_ACCESS_TOKEN=EAAG...
+WHATSAPP_PHONE_NUMBER_ID=1234567890
+WHATSAPP_VERIFY_TOKEN=stellar-agent-verify-change-me
 ```
+
+`WHATSAPP_VERIFY_TOKEN` is **any string you invent** — you will paste the same value in the Meta webhook config.
 
 ### 3. Deploy on Vercel
-Push + set the env vars → deploy.
 
-### 4. Register the webhook (one time)
+Set the env vars and deploy. Your webhook URL will be:
 
-```bash
-curl -X POST https://tu-app.vercel.app/api/telegram/setup \
-  -H "x-setup-secret: una-clave-secreta-tuya" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://tu-app.vercel.app/api/telegram/webhook"}'
+```text
+https://YOUR_DOMAIN/api/whatsapp/webhook
 ```
 
-### 5. Use it
-Open your bot on Telegram → `/start` → talk naturally:
+### 4. Configure webhook in Meta
 
-- "Creá una wallet y fóndala"
-- "Agregá contacto Alice GXXXX..."
-- "Envía 5 XLM a Alice" → aparece botón **Confirmar**
-- "¿Cuál es mi balance?"
+1. WhatsApp → **Configuration** → **Webhook** → Edit
+2. **Callback URL**: `https://YOUR_DOMAIN/api/whatsapp/webhook`
+3. **Verify token**: same as `WHATSAPP_VERIFY_TOKEN`
+4. Subscribe to the field: **messages**
+5. Save
 
-## Demo Flow
+Meta will send a GET challenge; the route answers automatically if the verify token matches.
 
-1. Sign in (web) or `/start` (Telegram)
+### 5. Test
+
+From the Meta panel (or from your linked test phone), send a message to the business number:
+
+- `hola` or `/start`
+- `Creá una wallet y fóndala`
+- `Agregá contacto Alice GXXXX...`
+- `Envía 5 XLM a Alice` → botones **Confirmar pago** / **Cancelar**
+
+Health check: `GET /api/whatsapp/health`
+
+### Notes (WhatsApp)
+
+- In **development** mode you can only message numbers added as test recipients.
+- Temporary tokens expire (~24h). For a real demo use a **permanent System User token** with `whatsapp_business_messaging` permission.
+- Interactive buttons: max 3, title max 20 characters (already handled).
+- Session storage is in-memory (fine for hackathon). Use Redis/KV in production.
+
+## Demo Flow (any channel)
+
+1. Open channel (web / Telegram / WhatsApp)
 2. Create wallet → Fund with Friendbot
 3. Add contacts
 4. Ask to send XLM → **Confirm** (human gate)
-5. Check History / Stellar Expert
+5. Check History / [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)
 
 ## Stack
 
 - Next.js 15 (App Router)
-- Clerk (Google auth on web)
-- Telegram Bot API (webhook)
+- Clerk (web auth)
+- Telegram Bot API
+- WhatsApp Business Cloud API (Meta Graph v21)
 - Vercel AI SDK + OpenAI tool calling
 - `@stellar/stellar-sdk` + Horizon Testnet + Friendbot
 - Tailwind CSS
 
-## WhatsApp / Instagram (roadmap)
+## Deploy checklist (Vercel)
 
-| Channel | Status | Notes |
-|---------|--------|-------|
-| **Telegram** | ✅ Ready | Free, inline confirm buttons |
-| **WhatsApp** | Planned | Needs Meta Business Cloud API or Twilio |
-| **Instagram** | Planned | Meta Messaging API + Business account |
-
-Telegram is the right first channel for a hackathon: free, instant, and the Confirm/Cancel buttons match the human-confirmation design.
-
-## Deploy on Vercel
-
-1. Push to `main`
-2. Set env: `OPENAI_API_KEY`, Clerk keys, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SETUP_SECRET`
-3. Deploy
-4. Call `/api/telegram/setup` once
-5. In Clerk → add your Vercel domain
+| Variable | Required for |
+|----------|----------------|
+| `OPENAI_API_KEY` | All channels |
+| `NEXT_PUBLIC_CLERK_*` / `CLERK_SECRET_KEY` | Web |
+| `TELEGRAM_BOT_TOKEN` | Telegram |
+| `TELEGRAM_SETUP_SECRET` | Telegram webhook setup |
+| `WHATSAPP_ACCESS_TOKEN` | WhatsApp |
+| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp |
+| `WHATSAPP_VERIFY_TOKEN` | WhatsApp webhook verify |
 
 ## License
 
