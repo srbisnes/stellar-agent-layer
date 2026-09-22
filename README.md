@@ -2,7 +2,6 @@
 
 > Real AI Agent Layer on **Stellar Testnet** with mandatory **Human-in-the-Loop** safety gate, USDC → ARS off-ramp, multi-wallet support and institutional black & gold design.
 
-**Branch:** `v2-vite-investor`  
 **Stack:** Vite + React 19 + Express + Tailwind 4 + Stellar SDK
 
 ---
@@ -24,7 +23,6 @@
 ```bash
 git clone https://github.com/srbisnes/stellar-agent-layer.git
 cd stellar-agent-layer
-git checkout v2-vite-investor
 npm install
 cp .env.example .env
 # Optional: add GEMINI_API_KEY and VITE_GOOGLE_CLIENT_ID
