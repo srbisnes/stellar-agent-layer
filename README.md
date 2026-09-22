@@ -4,7 +4,9 @@
 
 Intent Engine + Tool Calling + Wallet / Contact / Payment / History Engines on **Stellar Testnet**, with **mandatory human confirmation** before any payment is signed and submitted.
 
-**Multi-user ready** — Sign in with Google (Clerk). Each user gets an isolated wallet, contacts and payment history.
+**Channels**
+- 🌐 **Web** — dashboard with Google login (Clerk)
+- ✈️ **Telegram** — full agent in chat with Confirm / Cancel buttons
 
 Ready for hackathon demos.
 
@@ -12,7 +14,7 @@ Ready for hackathon demos.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Dashboard (Next.js)                     │
+│              Channels: Web (Clerk) · Telegram               │
 ├─────────────┬───────────────────────┬───────────────────────┤
 │ Wallet      │   Stellar Agent       │  History Engine       │
 │ Engine      │   (Intent + Tools)    │                       │
@@ -30,29 +32,14 @@ Ready for hackathon demos.
               Stellar SDK + Horizon Testnet + Friendbot
 ```
 
-### Engines
-
-| Engine | Responsibility |
-|--------|----------------|
-| **Wallet Engine** | Ephemeral keypairs, Friendbot funding, balances |
-| **Contact Engine** | Address book (name ↔ G… public key) |
-| **Payment Engine** | Creates **intents only**. Never auto-submits |
-| **History Engine** | Merges local intents + Horizon payments |
-
-### Auth
-
-- **Clerk** with Google (and email) sign-in / sign-up
-- Each user has isolated localStorage data (wallet, contacts, intents)
-- Secret keys stay client-side and are only sent at confirmation time
-
 ### Safety
 
 - Payment tools only create **intents**.
-- A modal **Human Confirmation** gate is required before signing.
-- Secret keys stay client-side / are sent only at confirmation time to the confirm API.
+- Human confirmation is required before signing (web modal or Telegram inline buttons).
+- Secret keys stay client-side (web) or in server session (Telegram demo).
 - Testnet only. No mainnet secrets.
 
-## Quick Start
+## Quick Start (Web)
 
 ```bash
 git clone https://github.com/srbisnes/stellar-agent-layer.git
@@ -61,62 +48,89 @@ npm install
 cp .env.example .env.local
 ```
 
-### 1. OpenAI key
+Fill:
 
 ```env
 OPENAI_API_KEY=sk-...
-```
-
-### 2. Clerk (Google login) — required for multi-user
-
-1. Go to [dashboard.clerk.com](https://dashboard.clerk.com) → Create application
-2. Enable **Google** as social connection
-3. Copy the keys into `.env.local`:
-
-```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 ```
-
-4. In Clerk Dashboard → Paths, set:
-   - Sign-in URL: `/sign-in`
-   - Sign-up URL: `/sign-up`
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000 → Sign up with Google.
 
-## Demo Script (Hackathon)
+## Telegram Bot Setup
 
-1. **Sign up / Sign in** with Google
-2. **Create wallet** → click or ask the agent
-3. **Fund with Friendbot** (10,000 test XLM)
-4. **Add a contact** (e.g. Alice + a G… address) or let the agent do it
-5. Tell the agent: *“Envía 5 XLM a Alice”*
-6. A **pending confirmation** appears → Review & Confirm → tx on Testnet
-7. Check **History** and [Stellar Expert](https://stellar.expert/explorer/testnet)
+### 1. Create the bot
+1. Open Telegram → talk to [@BotFather](https://t.me/BotFather)
+2. Send `/newbot` and follow the steps
+3. Copy the **token**
+
+### 2. Env vars
+
+```env
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_SETUP_SECRET=una-clave-secreta-tuya
+NEXT_PUBLIC_APP_URL=https://tu-app.vercel.app
+```
+
+### 3. Deploy on Vercel
+Push + set the env vars → deploy.
+
+### 4. Register the webhook (one time)
+
+```bash
+curl -X POST https://tu-app.vercel.app/api/telegram/setup \
+  -H "x-setup-secret: una-clave-secreta-tuya" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://tu-app.vercel.app/api/telegram/webhook"}'
+```
+
+### 5. Use it
+Open your bot on Telegram → `/start` → talk naturally:
+
+- "Creá una wallet y fóndala"
+- "Agregá contacto Alice GXXXX..."
+- "Envía 5 XLM a Alice" → aparece botón **Confirmar**
+- "¿Cuál es mi balance?"
+
+## Demo Flow
+
+1. Sign in (web) or `/start` (Telegram)
+2. Create wallet → Fund with Friendbot
+3. Add contacts
+4. Ask to send XLM → **Confirm** (human gate)
+5. Check History / Stellar Expert
 
 ## Stack
 
 - Next.js 15 (App Router)
-- **Clerk** — Google auth + multi-user isolation
-- Vercel AI SDK (`ai` + `@ai-sdk/openai`) — tool calling
+- Clerk (Google auth on web)
+- Telegram Bot API (webhook)
+- Vercel AI SDK + OpenAI tool calling
 - `@stellar/stellar-sdk` + Horizon Testnet + Friendbot
 - Tailwind CSS
-- Client-side engines (localStorage scoped per user)
+
+## WhatsApp / Instagram (roadmap)
+
+| Channel | Status | Notes |
+|---------|--------|-------|
+| **Telegram** | ✅ Ready | Free, inline confirm buttons |
+| **WhatsApp** | Planned | Needs Meta Business Cloud API or Twilio |
+| **Instagram** | Planned | Meta Messaging API + Business account |
+
+Telegram is the right first channel for a hackathon: free, instant, and the Confirm/Cancel buttons match the human-confirmation design.
 
 ## Deploy on Vercel
 
 1. Push to `main`
-2. Import the repo in Vercel
-3. Set environment variables:
-   - `OPENAI_API_KEY`
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   - `CLERK_SECRET_KEY`
-4. In Clerk Dashboard → Domains, add your Vercel domain
-5. Deploy
+2. Set env: `OPENAI_API_KEY`, Clerk keys, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SETUP_SECRET`
+3. Deploy
+4. Call `/api/telegram/setup` once
+5. In Clerk → add your Vercel domain
 
 ## License
 
