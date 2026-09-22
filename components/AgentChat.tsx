@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { walletEngine } from "@/lib/engines/wallet-engine";
 import { contactEngine } from "@/lib/engines/contact-engine";
 import { paymentEngine } from "@/lib/engines/payment-engine";
+import { generateKeypair, fundWithFriendbot } from "@/lib/stellar/client";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
@@ -60,31 +61,42 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         if (!walletEngine?.hasWallet()) {
           await walletEngine?.createWallet();
         }
-        // Auto-fund after create when the user asked for both
-        const lastUser = [...messages].reverse().find((m) => m.role === "user");
-        const text = (lastUser?.content || "").toLowerCase();
-        if (/fond|fund|friendbot/.test(text) && walletEngine?.getPublicKey()) {
+        if (result.autoFund) {
           await walletEngine?.fundWallet();
         }
       }
 
-      if (result.action === "FUND_WALLET" || (result.publicKey && result.action === undefined && result.message?.includes?.("Friendbot"))) {
-        const pk = result.publicKey || walletEngine?.getPublicKey();
-        if (pk) {
-          await walletEngine?.fundWallet();
-        }
+      if (result.action === "FUND_WALLET") {
+        await walletEngine?.fundWallet();
       }
 
-      if (result.action === "ADD_CONTACT" && result.name && result.publicKey) {
+      if (result.action === "ADD_CONTACT" && result.name) {
         try {
-          if (!contactEngine?.findByPublicKey(result.publicKey)) {
-            contactEngine?.add(result.name, result.publicKey, result.note);
+          let pk = result.publicKey as string | null;
+          if (!pk || result.generateIfMissing) {
+            const kp = generateKeypair();
+            pk = kp.publicKey;
+            if (result.fundIfGenerated) {
+              await fundWithFriendbot(pk);
+            }
           }
-        } catch {}
+          if (pk && !contactEngine?.findByPublicKey(pk)) {
+            contactEngine?.add(result.name, pk, result.note);
+          }
+        } catch (e) {
+          console.error("add contact", e);
+        }
       }
 
       if (result.action === "CREATE_PAYMENT_INTENT") {
         try {
+          // If destination is a name without contact yet, create one on the fly
+          const dest = result.destination as string;
+          if (dest && !dest.startsWith("G") && !contactEngine?.resolve(dest)) {
+            const kp = generateKeypair();
+            await fundWithFriendbot(kp.publicKey);
+            contactEngine?.add(dest, kp.publicKey, "Auto-created for payment demo");
+          }
           paymentEngine?.createIntent({
             destination: result.destination,
             amount: result.amount,
@@ -95,11 +107,11 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         }
       }
 
-      if (result.success && result.publicKey && result.txHash) {
+      if (result.action === "GET_BALANCE") {
         await walletEngine?.refreshBalance();
       }
 
-      if (result.action === "GET_BALANCE" && result.publicKey) {
+      if (result.success && result.publicKey && result.txHash) {
         await walletEngine?.refreshBalance();
       }
     }
@@ -121,11 +133,12 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
     setIsLoading(true);
 
     try {
-      const currentCtx = walletEngine?.getWallet()
+      const w = walletEngine?.getWallet();
+      const currentCtx = w
         ? {
-            publicKey: walletEngine.getWallet()!.publicKey,
-            funded: walletEngine.getWallet()!.funded,
-            balances: walletEngine.getWallet()!.balances,
+            publicKey: w.publicKey,
+            funded: w.funded,
+            balances: w.balances,
           }
         : null;
 
@@ -143,13 +156,19 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
 
       const contentType = res.headers.get("content-type") || "";
 
-      // Demo JSON path (no OpenAI key)
       if (contentType.includes("application/json")) {
         const data = await res.json();
         if (data.mode === "demo" || data.content) {
           setDemoMode(true);
           if (data.tools?.length) {
             await processToolResults(data.tools);
+          }
+          // Extra refresh after fund
+          if (/fond|fund|crea.*wallet/i.test(trimmed)) {
+            await new Promise((r) => setTimeout(r, 1200));
+            await walletEngine?.refreshBalance();
+            refreshCtx();
+            onAction?.();
           }
           setMessages((prev) => [
             ...prev,
@@ -159,13 +178,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
               content: data.content || data.error || "Listo.",
             },
           ]);
-          // After CREATE_WALLET + fund intent, refresh once more
-          if (/fond|fund|crea.*wallet/i.test(trimmed)) {
-            await new Promise((r) => setTimeout(r, 800));
-            await walletEngine?.refreshBalance();
-            refreshCtx();
-            onAction?.();
-          }
           return;
         }
         if (data.error) {
@@ -181,7 +193,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
         }
       }
 
-      // Streaming path (OpenAI configured) — basic text extraction
       if (res.ok && res.body) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -196,13 +207,10 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          // AI SDK data stream: lines like 0:"text"
-          const lines = chunk.split("\n");
-          for (const line of lines) {
+          for (const line of chunk.split("\n")) {
             if (line.startsWith("0:")) {
               try {
-                const piece = JSON.parse(line.slice(2));
-                full += piece;
+                full += JSON.parse(line.slice(2));
               } catch {
                 full += line.slice(2);
               }
@@ -213,11 +221,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
               m.id === assistantId ? { ...m, content: full || "…" } : m
             )
           );
-        }
-
-        // Heuristic side-effects for streamed tool mode (client already handles via tools in demo)
-        if (/CREATE_WALLET|create_wallet/i.test(full)) {
-          if (!walletEngine?.hasWallet()) await walletEngine?.createWallet();
         }
         refreshCtx();
         onAction?.();
@@ -247,11 +250,6 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(input);
-  };
-
   return (
     <div className="flex flex-col h-full bg-agent-card border border-agent-border rounded-2xl overflow-hidden agent-glow">
       <div className="px-5 py-4 border-b border-gray-800 flex items-center gap-3">
@@ -267,16 +265,14 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
             )}
           </p>
         </div>
-        {isLoading && (
-          <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-        )}
+        {isLoading && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[320px] max-h-[480px]">
         {messages.length === 0 && (
           <div className="space-y-4 py-6">
             <p className="text-sm text-gray-400 text-center">
-              Soy un agente real con tools. Probá el flujo de inversores:
+              Flujo listo para inversores — tocá una sugerencia:
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {SUGGESTIONS.map((s) => (
@@ -328,7 +324,10 @@ export function AgentChat({ onAction }: { onAction?: () => void }) {
       </div>
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendMessage(input);
+        }}
         className="p-4 border-t border-gray-800 flex gap-2"
       >
         <input
