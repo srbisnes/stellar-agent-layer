@@ -121,24 +121,29 @@ Channels (Web)  →  Telegram (próximo)  →  WhatsApp (después)
 
 ## Environment
 
-| Variable                | Required | Description                        |
-|-------------------------|----------|------------------------------------|
-| `PORT`                  | No       | Server port (default 3000)         |
-| `GEMINI_API_KEY`        | No       | Optional Gemini for richer replies |
-| `VITE_GOOGLE_CLIENT_ID` | No       | Optional Google Identity login     |
+Ver [`.env.example`](.env.example) completo.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `STELLAR_NETWORK` | No | `testnet` (default) |
+| `HORIZON_URL` | No | `https://horizon-testnet.stellar.org` |
+| `FRIENDBOT_URL` | No | `https://friendbot.stellar.org` |
+| `GEMINI_API_KEY` | No | Gemini para el agente conversacional (sin ella funciona el Intent Engine local) |
+| `VITE_GOOGLE_CLIENT_ID` | No | Google login (sin ella: Demo Login) |
+| `PORT` | No | Puerto del servidor (default `3000`) |
 
 ---
 
 ## Scripts
 
-| Command           | Description                              |
-|-------------------|------------------------------------------|
-| `npm run dev`     | Solo API (Express) en :3000              |
-| `npm run dev:client` | Solo UI (Vite) en :5173               |
-| `npm run dev:full`| API + UI juntos (recomendado en local)   |
-| `npm run build`   | Production build                         |
-| `npm start`       | Run production server                    |
-| `npm run lint`    | TypeScript check                         |
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Solo API (Express) en :3000 |
+| `npm run dev:client` | Solo UI (Vite) en :5173 |
+| `npm run dev:full` | API + UI juntos (recomendado en local) |
+| `npm run build` | Production build |
+| `npm start` | Run production server |
+| `npm run lint` | TypeScript check |
 
 ---
 
