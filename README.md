@@ -13,13 +13,13 @@
 
 ---
 
-## Current Status (Sept 2026)
+## Current Status (24 Sept 2026)
 
-| Area | Status | Next action |
-|------|--------|-------------|
-| **Wallet + Friendbot (XLM)** | 🟡 En curso | Hacer el fondeo 100% confiable + Freighter visible |
-| **Telegram channel** | 🔜 Siguiente | Portar agente a Telegram (botones Confirmar/Cancelar) |
-| **WhatsApp channel** | 📋 Planificado | Después de Telegram (Meta Business) |
+| Area | Status | Notes |
+|------|--------|-------|
+| **Wallet + Friendbot (XLM)** | ✅ Listo | Backend `/api/friendbot` + Freighter + feedback claro |
+| **Telegram channel** | 🔜 Siguiente | Próximo paso de producto |
+| **WhatsApp channel** | 📋 Planificado | Después de Telegram |
 | **Human-in-the-Loop** | ✅ Listo | El agente nunca firma solo |
 | **USDC → ARS off-ramp** | ✅ Simulado | Listo para demos |
 
@@ -34,7 +34,7 @@
 | **Human-in-the-Loop Gate** | The agent never signs or submits value-moving transactions. Every payment becomes a `PaymentIntent` that requires explicit user confirmation. |
 | **USDC → Pesos (ARS) Off-Ramp** | Simulated liquidation to Mercado Pago, Ualá, Lemon, Galicia, Santander, Brubank or any CBU/CVU/Alias. |
 | **Multi-Wallet Engine** | Generate, import secret, watch-only, Freighter extension. |
-| **Friendbot + USDC faucet** | One-click testnet funding. |
+| **Friendbot + USDC faucet** | One-click testnet funding via backend proxy. |
 | **Investor Metrics Bar** | Settlement finality, tx cost, custody model, network status. |
 | **Black & Gold UI** | High-contrast institutional design ready for demos and investor meetings. |
 | **Local Intent Engine** | Works even without Gemini API key (full offline fallback). |
@@ -49,17 +49,18 @@ cd stellar-agent-layer
 npm install
 cp .env.example .env
 # Optional: add GEMINI_API_KEY and VITE_GOOGLE_CLIENT_ID
-npm run dev
+npm run dev:full
 ```
 
-Open **http://localhost:3000**
+- API / Friendbot → http://localhost:3000  
+- UI → http://localhost:5173
 
 ---
 
 ## Demo Flow (Web)
 
 1. Click **Demo Login**
-2. Create Wallet → Fund with Friendbot (+10 000 XLM)
+2. **Crear Wallet** → **Fondear +10k XLM** (o **Conectar Freighter**)
 3. Go to “Mover USDC & Transformar a Pesos” → Faucet → +250 USDC
 4. Create an off-ramp intent to Mercado Pago
 5. Authorize in the confirmation modal (**Human-in-the-Loop**)
@@ -113,12 +114,14 @@ Channels (Web)  →  Telegram (próximo)  →  WhatsApp (después)
 
 ## Scripts
 
-| Command         | Description                   |
-|-----------------|-------------------------------|
-| `npm run dev`   | Start Vite + Express together |
-| `npm run build` | Production build              |
-| `npm start`     | Run production server         |
-| `npm run lint`  | TypeScript check              |
+| Command           | Description                              |
+|-------------------|------------------------------------------|
+| `npm run dev`     | Solo API (Express) en :3000              |
+| `npm run dev:client` | Solo UI (Vite) en :5173               |
+| `npm run dev:full`| API + UI juntos (recomendado en local)   |
+| `npm run build`   | Production build                         |
+| `npm start`       | Run production server                    |
+| `npm run lint`    | TypeScript check                         |
 
 ---
 
