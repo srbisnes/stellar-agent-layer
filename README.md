@@ -1,6 +1,6 @@
 # Stellar Agent Layer v2 · Investor Ready
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://stellar-agent-layer.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloud%20Run-black?style=for-the-badge&logo=googlecloud)](https://ais-pre-tjrmnenolly5dl4ufn6wuv-131689732407.us-east1.run.app)
 [![Stellar Testnet](https://img.shields.io/badge/Network-Stellar%20Testnet-7D00FF?style=for-the-badge&logo=stellar)](https://stellar.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
@@ -9,7 +9,7 @@
 > **Real AI Agent Layer** on Stellar Testnet with mandatory **Human-in-the-Loop** safety gate.
 > Wallet · Contacts · Payments · History · USDC → ARS off-ramp · Black & Gold institutional UI.
 
-**Live Demo → [stellar-agent-layer.vercel.app](https://stellar-agent-layer.vercel.app/)**
+**Live Demo → [Abrir aplicación](https://ais-pre-tjrmnenolly5dl4ufn6wuv-131689732407.us-east1.run.app)**
 
 ---
 
@@ -24,6 +24,23 @@
 | **USDC → ARS off-ramp** | ✅ Simulado | Listo para demos |
 
 **Ver detalle completo → [ROADMAP.md](ROADMAP.md)**
+
+---
+
+## 🌐 Verificación en Stellar Testnet (Testnet Proof & Audit)
+
+| Parámetro | Valor verificado en blockchain |
+|-----------|--------------------------------|
+| **Red Stellar** | `Testnet` |
+| **Passphrase de Red** | `Test SDF Network ; September 2015` |
+| **Servidor Horizon** | `https://horizon-testnet.stellar.org` |
+| **Friendbot Faucet** | `https://friendbot.stellar.org` |
+| **Cuenta Pública de Prueba** | `GAI663ZTGAFE6CIH6PSCC5XCFFMOLGCPUIHO25LVWMEDB3MD2J2Y7VFP` |
+| **Saldo Fondeado Activo** | `10,000.0000000 XLM` |
+| **Explorador Público** | [Ver en StellarExpert Testnet](https://stellar.expert/explorer/testnet/account/GAI663ZTGAFE6CIH6PSCC5XCFFMOLGCPUIHO25LVWMEDB3MD2J2Y7VFP) |
+| **Demo en Vivo** | [Abrir Aplicación](https://ais-pre-tjrmnenolly5dl4ufn6wuv-131689732407.us-east1.run.app) |
+
+> Prueba on-chain: la cuenta de testnet fue fondeada con Friendbot y el saldo es verificable públicamente en el explorador.
 
 ---
 
