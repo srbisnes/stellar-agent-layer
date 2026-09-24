@@ -4,11 +4,26 @@
 [![Stellar Testnet](https://img.shields.io/badge/Network-Stellar%20Testnet-7D00FF?style=for-the-badge&logo=stellar)](https://stellar.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![Roadmap](https://img.shields.io/badge/Roadmap-Public-0A66C2?style=for-the-badge)](ROADMAP.md)
 
 > **Real AI Agent Layer** on Stellar Testnet with mandatory **Human-in-the-Loop** safety gate.
 > Wallet · Contacts · Payments · History · USDC → ARS off-ramp · Black & Gold institutional UI.
 
 **Live Demo → [stellar-agent-layer.vercel.app](https://stellar-agent-layer.vercel.app/)**
+
+---
+
+## Current Status (Sept 2026)
+
+| Area | Status | Next action |
+|------|--------|-------------|
+| **Wallet + Friendbot (XLM)** | 🟡 En curso | Hacer el fondeo 100% confiable + Freighter visible |
+| **Telegram channel** | 🔜 Siguiente | Portar agente a Telegram (botones Confirmar/Cancelar) |
+| **WhatsApp channel** | 📋 Planificado | Después de Telegram (Meta Business) |
+| **Human-in-the-Loop** | ✅ Listo | El agente nunca firma solo |
+| **USDC → ARS off-ramp** | ✅ Simulado | Listo para demos |
+
+**Ver detalle completo → [ROADMAP.md](ROADMAP.md)**
 
 ---
 
@@ -63,16 +78,16 @@ Open **http://localhost:3000**
 ## Architecture
 
 ```
-Channels (Web)
-      │
-      ▼
+Channels (Web)  →  Telegram (próximo)  →  WhatsApp (después)
+        │
+        ▼
 ┌─────────────────────────────────────────────┐
 │  Stellar Agent (Intent Engine + Tool Call)  │
 │  Wallet · Contact · Payment · History       │
-│  Human confirmation gate (modal)            │
+│  Human confirmation gate (modal / botones)  │
 └─────────────────────────────────────────────┘
-      │
-      ▼
+        │
+        ▼
   Stellar Horizon Testnet
 ```
 
@@ -119,11 +134,14 @@ Channels (Web)
 
 ## Roadmap (Pre-Seed)
 
-- [ ] Formal security audit
-- [ ] Mainnet rollout with hardware-wallet support
-- [ ] Real bank rail integration (Argentina)
-- [ ] Telegram + WhatsApp channels (ported from v1)
-- [ ] Developer SDK
+Ver el detalle y prioridades actuales en **[ROADMAP.md](ROADMAP.md)**.
+
+Issues públicos:
+- [#2 Formal security audit](https://github.com/srbisnes/stellar-agent-layer/issues/2)
+- [#3 Mainnet + hardware wallet](https://github.com/srbisnes/stellar-agent-layer/issues/3)
+- [#4 Real bank rail (Argentina)](https://github.com/srbisnes/stellar-agent-layer/issues/4)
+- [#5 Telegram + WhatsApp](https://github.com/srbisnes/stellar-agent-layer/issues/5)
+- [#6 Developer SDK](https://github.com/srbisnes/stellar-agent-layer/issues/6)
 
 ---
 
