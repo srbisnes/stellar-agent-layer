@@ -43,28 +43,73 @@ export function generateKeypair() {
   };
 }
 
+/**
+ * Fund a testnet account.
+ * 1) Prefer backend /api/friendbot (no CORS, more reliable)
+ * 2) Fallback to direct Friendbot call
+ */
 export async function fundWithFriendbot(publicKey: string): Promise<{
   success: boolean;
   message: string;
   txHash?: string;
+  explorer?: string;
 }> {
+  // 1) Backend proxy
+  try {
+    const res = await fetch("/api/friendbot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publicKey }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      return {
+        success: true,
+        message: data.message || "Account funded with ~10,000 test XLM",
+        txHash: data.txHash,
+        explorer:
+          data.explorer ||
+          (data.txHash
+            ? `https://stellar.expert/explorer/testnet/tx/${data.txHash}`
+            : `https://stellar.expert/explorer/testnet/account/${publicKey}`),
+      };
+    }
+    // If backend returned a clear error (not network), surface it
+    if (res.status >= 400 && data.message) {
+      // continue to direct fallback only on 5xx / network-ish cases
+      if (res.status < 500) {
+        return { success: false, message: data.message };
+      }
+    }
+  } catch {
+    // network error → try direct
+  }
+
+  // 2) Direct Friendbot fallback
   try {
     const url = `${FRIENDBOT_URL}?addr=${encodeURIComponent(publicKey)}`;
     const res = await fetch(url);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       return {
         success: false,
-        message: data.detail || data.title || "Friendbot failed",
+        message: data.detail || data.title || data.message || "Friendbot failed",
       };
     }
+    const txHash = data.hash || data.transaction_hash;
     return {
       success: true,
-      message: "Account funded with 10,000 test XLM",
-      txHash: data.hash,
+      message: "Account funded with ~10,000 test XLM",
+      txHash,
+      explorer: txHash
+        ? `https://stellar.expert/explorer/testnet/tx/${txHash}`
+        : `https://stellar.expert/explorer/testnet/account/${publicKey}`,
     };
   } catch (err: any) {
-    return { success: false, message: err.message || "Friendbot request failed" };
+    return {
+      success: false,
+      message: err.message || "Friendbot request failed. Try again in a few seconds.",
+    };
   }
 }
 
