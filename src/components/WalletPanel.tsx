@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Wallet, Plus, RefreshCw, Copy, ExternalLink, Key } from "lucide-react";
+import { Wallet, Plus, RefreshCw, Copy, ExternalLink, Link2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { walletEngine } from "@/lib/engines/wallet-engine";
@@ -14,6 +14,7 @@ export function WalletPanel({ onUpdate }: Props) {
   const [wallets, setWallets] = useState<WalletState[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [explorerUrl, setExplorerUrl] = useState<string | null>(null);
 
   const refresh = () => {
     setWallets(walletEngine.list());
@@ -26,13 +27,14 @@ export function WalletPanel({ onUpdate }: Props) {
   const handleCreate = async () => {
     setLoading(true);
     setMsg(null);
+    setExplorerUrl(null);
     try {
       await walletEngine.createWallet("Billetera Principal");
       refresh();
       onUpdate();
-      setMsg("Wallet creada. Ahora fondeala con Friendbot.");
+      setMsg("Wallet creada. Tocá «Fondear +10k XLM» para recibir testnet XLM.");
     } catch (e: any) {
-      setMsg(e.message);
+      setMsg(e.message || "Error al crear wallet");
     } finally {
       setLoading(false);
     }
@@ -41,13 +43,38 @@ export function WalletPanel({ onUpdate }: Props) {
   const handleFund = async (id: string) => {
     setLoading(true);
     setMsg(null);
+    setExplorerUrl(null);
     try {
       const res = await walletEngine.fundWallet(id);
       refresh();
       onUpdate();
-      setMsg(res.message);
+      if (res.success) {
+        setMsg(res.message || "¡Fondeada! Balance actualizado.");
+        if (res.explorer) setExplorerUrl(res.explorer);
+      } else {
+        setMsg(res.message || "No se pudo fondear. Probá de nuevo en unos segundos.");
+      }
     } catch (e: any) {
-      setMsg(e.message);
+      setMsg(e.message || "Error al fondear");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFreighter = async () => {
+    setLoading(true);
+    setMsg(null);
+    setExplorerUrl(null);
+    try {
+      await walletEngine.connectFreighter();
+      refresh();
+      onUpdate();
+      setMsg("Freighter conectado. Si es testnet, podés fondear desde el botón.");
+    } catch (e: any) {
+      setMsg(
+        e.message ||
+          "No se pudo conectar Freighter. ¿Tenés la extensión instalada y en Testnet?"
+      );
     } finally {
       setLoading(false);
     }
@@ -55,19 +82,32 @@ export function WalletPanel({ onUpdate }: Props) {
 
   const handleRefreshBalances = async () => {
     setLoading(true);
-    await walletEngine.refreshBalances();
-    refresh();
-    onUpdate();
-    setLoading(false);
+    setMsg(null);
+    try {
+      await walletEngine.refreshBalances();
+      refresh();
+      onUpdate();
+      setMsg("Balances actualizados");
+      setTimeout(() => setMsg(null), 2000);
+    } catch (e: any) {
+      setMsg(e.message || "Error al refrescar");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
-    setMsg("Copiado");
+    setMsg("Dirección copiada");
     setTimeout(() => setMsg(null), 1500);
   };
 
   const active = wallets.find((w) => w.isDefault) || wallets[0];
+  const needsFund =
+    active &&
+    (!active.funded ||
+      !active.balances?.length ||
+      active.balances.every((b) => parseFloat(b.balance || "0") === 0));
 
   return (
     <Card>
@@ -84,9 +124,14 @@ export function WalletPanel({ onUpdate }: Props) {
         {!active ? (
           <div className="text-center py-6 space-y-3">
             <p className="text-sm text-zinc-400">No hay wallet activa.</p>
-            <Button onClick={handleCreate} disabled={loading} variant="gold" size="sm">
-              <Plus className="w-4 h-4" /> Crear Wallet
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button onClick={handleCreate} disabled={loading} variant="gold" size="sm">
+                <Plus className="w-4 h-4" /> Crear Wallet
+              </Button>
+              <Button onClick={handleFreighter} disabled={loading} variant="outline" size="sm">
+                <Link2 className="w-4 h-4" /> Conectar Freighter
+              </Button>
+            </div>
           </div>
         ) : (
           <>
@@ -99,7 +144,11 @@ export function WalletPanel({ onUpdate }: Props) {
               </div>
               <div className="flex items-center gap-2 font-mono text-xs text-zinc-300">
                 <span>{shortAddress(active.publicKey, 6)}</span>
-                <button onClick={() => copy(active.publicKey)} className="text-zinc-500 hover:text-yellow-400">
+                <button
+                  onClick={() => copy(active.publicKey)}
+                  className="text-zinc-500 hover:text-yellow-400"
+                  title="Copiar dirección"
+                >
                   <Copy className="w-3.5 h-3.5" />
                 </button>
                 <a
@@ -107,6 +156,7 @@ export function WalletPanel({ onUpdate }: Props) {
                   target="_blank"
                   rel="noreferrer"
                   className="text-zinc-500 hover:text-yellow-400"
+                  title="Ver en Stellar Expert"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
@@ -114,34 +164,62 @@ export function WalletPanel({ onUpdate }: Props) {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {active.balances.length === 0 ? (
-                <div className="col-span-2 text-center text-xs text-zinc-500 py-2">
-                  Sin balance · {active.funded ? "Refrescá" : "Fondeá con Friendbot"}
+              {!active.balances?.length ? (
+                <div className="col-span-2 text-center text-xs text-zinc-500 py-2 rounded-lg border border-dashed border-zinc-800">
+                  Sin balance · {needsFund ? "Fondeá con Friendbot" : "Refrescá"}
                 </div>
               ) : (
                 active.balances.map((b) => (
-                  <div key={b.asset} className="rounded-lg bg-black/40 border border-zinc-800 px-3 py-2">
+                  <div
+                    key={b.asset}
+                    className="rounded-lg bg-black/40 border border-zinc-800 px-3 py-2"
+                  >
                     <p className="text-[10px] text-zinc-500 uppercase">{b.code || b.asset}</p>
-                    <p className="font-mono text-sm font-bold text-white">{formatXlm(b.balance)}</p>
+                    <p className="font-mono text-sm font-bold text-white">
+                      {formatXlm(b.balance)}
+                    </p>
                   </div>
                 ))
               )}
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {!active.funded && (
-                <Button size="sm" variant="gold" onClick={() => handleFund(active.id)} disabled={loading}>
-                  Fondear +10k XLM
+              {needsFund && active.type !== "watch_only" && (
+                <Button
+                  size="sm"
+                  variant="gold"
+                  onClick={() => handleFund(active.id)}
+                  disabled={loading}
+                >
+                  {loading ? "Fondeando…" : "Fondear +10k XLM"}
                 </Button>
               )}
               <Button size="sm" variant="outline" onClick={handleCreate} disabled={loading}>
                 <Plus className="w-3.5 h-3.5" /> Nueva
               </Button>
+              <Button size="sm" variant="outline" onClick={handleFreighter} disabled={loading}>
+                <Link2 className="w-3.5 h-3.5" /> Freighter
+              </Button>
             </div>
           </>
         )}
 
-        {msg && <p className="text-xs text-yellow-400/90">{msg}</p>}
+        {msg && (
+          <div className="space-y-1">
+            <p className="text-xs text-yellow-400/90">{msg}</p>
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-yellow-400"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Ver en Stellar Expert
+              </a>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
