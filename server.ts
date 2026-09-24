@@ -11,6 +11,46 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// ── Friendbot proxy (avoids browser CORS / rate-limit issues) ───────────────
+app.post("/api/friendbot", async (req, res) => {
+  try {
+    const { publicKey } = req.body || {};
+    if (!publicKey || typeof publicKey !== "string") {
+      return res.status(400).json({ success: false, message: "publicKey required" });
+    }
+    if (!publicKey.startsWith("G") || publicKey.length < 56) {
+      return res.status(400).json({ success: false, message: "Invalid Stellar public key" });
+    }
+
+    const url = `https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`;
+    const upstream = await fetch(url);
+    const data = await upstream.json().catch(() => ({}));
+
+    if (!upstream.ok) {
+      return res.status(upstream.status >= 400 ? upstream.status : 502).json({
+        success: false,
+        message: data.detail || data.title || data.message || "Friendbot failed",
+      });
+    }
+
+    const txHash = data.hash || data.transaction_hash || undefined;
+    return res.json({
+      success: true,
+      message: "Account funded with ~10,000 test XLM",
+      txHash,
+      explorer: txHash
+        ? `https://stellar.expert/explorer/testnet/tx/${txHash}`
+        : `https://stellar.expert/explorer/testnet/account/${publicKey}`,
+    });
+  } catch (err: any) {
+    console.error("[friendbot]", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Friendbot request failed",
+    });
+  }
+});
+
 // Simple agent endpoint with local fallback (Gemini optional)
 app.post("/api/agent", async (req, res) => {
   try {
