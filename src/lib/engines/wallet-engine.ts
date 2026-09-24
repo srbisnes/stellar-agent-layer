@@ -11,6 +11,10 @@ import { getWallets, saveWallets } from "@/lib/storage";
 import { uid } from "@/lib/utils";
 import type { WalletState, WalletBalance } from "@/types";
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 class WalletEngine {
   private wallets: WalletState[] = [];
 
@@ -56,11 +60,20 @@ class WalletEngine {
   async fundWallet(walletId?: string) {
     const wallet = this.getWallet(walletId);
     if (!wallet) throw new Error("No wallet found");
+
     const res = await fundWithFriendbot(wallet.publicKey);
     if (res.success) {
       wallet.funded = true;
-      await this.refreshBalances(wallet.id);
       this.persist();
+      // Horizon can lag a second or two after Friendbot
+      await sleep(1500);
+      await this.refreshBalances(wallet.id);
+      // one more retry if still empty
+      const stillEmpty = !wallet.balances?.length;
+      if (stillEmpty) {
+        await sleep(2000);
+        await this.refreshBalances(wallet.id);
+      }
     }
     return res;
   }
@@ -125,17 +138,23 @@ class WalletEngine {
 
   async connectFreighter(): Promise<WalletState> {
     const freighter = await import("@stellar/freighter-api");
-    const isConnected = await freighter.isConnected();
-    if (!isConnected) {
-      await freighter.requestAccess();
+    const connected = await freighter.isConnected();
+    if (!connected.isConnected) {
+      const access = await freighter.requestAccess();
+      if (access.error) {
+        throw new Error(access.error || "Freighter access denied");
+      }
     }
-    const address = await freighter.getAddress();
-    if (!address || !address.address) throw new Error("Freighter did not return an address");
-    const publicKey = address.address;
+    const addressResult = await freighter.getAddress();
+    if (addressResult.error || !addressResult.address) {
+      throw new Error(addressResult.error || "Freighter did not return an address");
+    }
+    const publicKey = addressResult.address;
     const existing = this.wallets.find((w) => w.publicKey === publicKey);
     if (existing) {
       existing.type = "freighter";
       this.persist();
+      await this.refreshBalances(existing.id);
       return existing;
     }
     const wallet: WalletState = {
@@ -191,7 +210,6 @@ class WalletEngine {
   async mintSimulatedTestnetUsdc(amount = 250, walletId?: string) {
     const wallet = this.getWallet(walletId);
     if (!wallet) throw new Error("No wallet");
-    // Simulated mint for demo (real testnet USDC requires issuer)
     const existing = wallet.balances.find((b) => b.asset.startsWith("USDC") || b.code === "USDC");
     if (existing) {
       existing.balance = (parseFloat(existing.balance) + amount).toFixed(2);
