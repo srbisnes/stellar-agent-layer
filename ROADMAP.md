@@ -1,6 +1,6 @@
 # Roadmap · Stellar Agent Layer
 
-> Estado público del proyecto · Actualizado: Septiembre 2026
+> Estado público del proyecto · Actualizado: 24 Septiembre 2026
 
 ---
 
@@ -15,25 +15,31 @@ Convertir **Stellar Agent Layer** en el agente de pagos más usable y seguro de 
 
 ---
 
-## Prioridad actual (lo que se está construyendo ahora)
+## Prioridad actual
 
-### 1. Wallet fluida + obtención de XLM  ← **EN CURSO**
+### 1. Wallet fluida + obtención de XLM  ← **LISTO ✅**
 
-**Problema a resolver**  
-El usuario debe poder crear una wallet y recibir XLM de testnet en menos de 30 segundos, con feedback claro.
+**Resultado**  
+El usuario puede crear una wallet y recibir XLM de testnet en segundos, con feedback claro.
 
-**Qué falta / se está terminando**
-- [ ] Fondeo vía backend (evitar problemas de CORS / rate-limit de Friendbot desde el browser)
-- [ ] Mensajes de éxito / error claros + link a Stellar Expert
-- [ ] Botón visible **“Conectar Freighter”**
-- [ ] Refresh de balance confiable después del fondeo
+**Completado**
+- [x] Fondeo vía backend `/api/friendbot` (evita CORS / rate-limit)
+- [x] Fallback a Friendbot directo si el backend no responde
+- [x] Mensajes de éxito / error claros + link a Stellar Expert
+- [x] Botón visible **“Conectar Freighter”**
+- [x] Refresh de balance confiable después del fondeo (con reintentos)
+- [x] UI muestra “Fondear +10k XLM” mientras no haya balance
 
-**Resultado esperado**  
-Cualquier persona puede entrar al demo, crear wallet, fondear y ver su balance de XLM sin fricción.
+**Cómo probar local**
+```bash
+npm install
+npm run dev:full   # server (3000) + Vite (5173)
+# Abrí http://localhost:5173 → Crear Wallet → Fondear +10k XLM
+```
 
 ---
 
-### 2. Canal de mensajería (Telegram primero)
+### 2. Canal de mensajería (Telegram primero)  ← **SIGUIENTE**
 
 **Por qué Telegram primero**
 - Setup rápido (BotFather)
@@ -54,7 +60,7 @@ Cualquier persona puede entrar al demo, crear wallet, fondear y ver su balance d
 
 ### 3. Experiencia profesional y diferencial en Stellar
 
-Una vez que la wallet y el canal de mensajería estén sólidos:
+Una vez que el canal de mensajería esté sólido:
 
 | Diferencial | Descripción |
 |-------------|-------------|
