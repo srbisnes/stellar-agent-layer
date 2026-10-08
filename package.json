@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "dev:client": "vite",
-    "dev:full": "npx --yes concurrently -k \"tsx server.ts\" \"vite\"",
+    "dev:full": "concurrently -k \"tsx server.ts\" \"vite\"",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "lint": "tsc --noEmit",
@@ -35,6 +35,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
     "esbuild": "^0.24.0",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.0",
