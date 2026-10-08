@@ -1,6 +1,7 @@
 import { getPaymentIntents, savePaymentIntents } from "@/lib/storage";
 import { walletEngine } from "./wallet-engine";
 import { contactEngine } from "./contact-engine";
+import { historyEngine } from "./history-engine";
 import { isValidPublicKey, buildPaymentTransaction, submitTransaction } from "@/lib/stellar/client";
 import { uid } from "@/lib/utils";
 import type { PaymentIntent, OfframpDetails } from "@/types";
@@ -45,8 +46,10 @@ class PaymentEngine {
     if (contact) {
       dest = contact.publicKey;
       label = contact.name;
-    } else if (!isValidPublicKey(dest) && !dest.startsWith("G")) {
-      throw new Error(`Unknown contact or invalid address: ${params.destination}`);
+    } else if (!isValidPublicKey(dest)) {
+      throw new Error(
+        `Contacto desconocido o dirección inválida: "${params.destination}". Usá un nombre de contacto o una public key Stellar válida (G…).`
+      );
     }
 
     const intent: PaymentIntent = {
@@ -65,6 +68,14 @@ class PaymentEngine {
 
     this.intents.unshift(intent);
     this.persist();
+    historyEngine.add({
+      type: "agent_intent",
+      title: `Intent: ${intent.amount} ${intent.asset} → ${intent.destinationLabel || intent.destination.slice(0, 12)}`,
+      amount: intent.amount,
+      asset: intent.asset,
+      counterparty: intent.destinationLabel || intent.destination,
+      status: "pending_confirmation",
+    });
     return intent;
   }
 
@@ -99,6 +110,15 @@ class PaymentEngine {
         intent.txHash = result.hash;
         intent.confirmedAt = new Date().toISOString();
         this.persist();
+        historyEngine.add({
+          type: "payment_out",
+          title: `Pago ${intent.amount} ${intent.asset} → ${intent.destinationLabel || intent.destination.slice(0, 12)}`,
+          amount: intent.amount,
+          asset: intent.asset,
+          counterparty: intent.destinationLabel || intent.destination,
+          txHash: result.hash,
+          status: "success",
+        });
         return { success: true, hash: result.hash };
       } else {
         intent.status = "failed";
