@@ -13,15 +13,17 @@
 
 ---
 
-## Current Status (24 Sept 2026)
+## Current Status (Oct 2026)
 
 | Area | Status | Notes |
 |------|--------|-------|
 | **Wallet + Friendbot (XLM)** | ✅ Listo | Backend `/api/friendbot` + Freighter + feedback claro |
-| **Telegram channel** | 🔜 Siguiente | Próximo paso de producto |
-| **WhatsApp channel** | 📋 Planificado | Después de Telegram |
 | **Human-in-the-Loop** | ✅ Listo | El agente nunca firma solo |
 | **USDC → ARS off-ramp** | ✅ Simulado | Listo para demos |
+| **Valid Testnet keys + History** | ✅ Listo | Claves checksum-válidas + historial de intents/pagos |
+| **Clean architecture** | ✅ Listo | Vite + Express únicamente (sin código muerto) |
+| **Telegram channel** | 🔜 Siguiente | Próximo paso de producto |
+| **WhatsApp channel** | 📋 Planificado | Después de Telegram |
 
 **Ver detalle completo → [ROADMAP.md](ROADMAP.md)**
 
@@ -78,10 +80,9 @@ npm run dev:full
 
 1. Click **Demo Login**
 2. **Crear Wallet** → **Fondear +10k XLM** (o **Conectar Freighter**)
-3. Go to “Mover USDC & Transformar a Pesos” → Faucet → +250 USDC
-4. Create an off-ramp intent to Mercado Pago
-5. Authorize in the confirmation modal (**Human-in-the-Loop**)
-6. Check History + [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)
+3. Ask the agent: *“Envía 5 XLM a Alice”* (or use the USDC → ARS panel)
+4. Authorize in the confirmation modal (**Human-in-the-Loop**)
+5. Check History + [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)
 
 ### Example chat prompts
 
@@ -109,6 +110,9 @@ Channels (Web)  →  Telegram (próximo)  →  WhatsApp (después)
   Stellar Horizon Testnet
 ```
 
+**Stack único:** Vite 6 + React 19 + Express + `@stellar/stellar-sdk`  
+(Sin Next.js ni código muerto — arquitectura limpia para demos e inversores.)
+
 ---
 
 ## Safety
@@ -116,6 +120,7 @@ Channels (Web)  →  Telegram (próximo)  →  WhatsApp (después)
 - Payment tools **only create intents**.
 - Human confirmation is required before any signing/submission.
 - Testnet only. No mainnet secrets are ever stored or transmitted without the user explicitly providing them.
+- Public keys are strictly validated (Stellar ed25519 checksum).
 
 ---
 
