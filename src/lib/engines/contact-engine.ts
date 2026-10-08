@@ -8,21 +8,22 @@ class ContactEngine {
 
   constructor() {
     this.contacts = getContacts();
-    // Seed demo contacts if empty
+    // Seed demo contacts with VALID Stellar public keys (checksum-correct)
+    // so createIntent + buildPaymentTransaction succeed on Testnet.
     if (this.contacts.length === 0) {
       this.contacts = [
         {
           id: uid("c_"),
           name: "Alice",
-          publicKey: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-          note: "Demo peer (replace with real testnet key)",
+          publicKey: "GAI663ZTGAFE6CIH6PSCC5XCFFMOLGCPUIHO25LVWMEDB3MD2J2Y7VFP",
+          note: "Demo peer · cuenta de prueba del proyecto (Testnet)",
           createdAt: new Date().toISOString(),
         },
         {
           id: uid("c_"),
           name: "Bob",
-          publicKey: "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-          note: "Demo peer",
+          publicKey: "GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y",
+          note: "Demo peer · clave pública válida (Testnet)",
           createdAt: new Date().toISOString(),
         },
       ];
@@ -39,16 +40,19 @@ class ContactEngine {
   }
 
   add(name: string, publicKey: string, note?: string): Contact {
-    if (!isValidPublicKey(publicKey) && !publicKey.startsWith("G")) {
-      // Allow demo keys for testing
+    const pk = publicKey.trim();
+    if (!isValidPublicKey(pk)) {
+      throw new Error(
+        `Clave pública inválida: ${pk}. Debe ser una dirección Stellar ed25519 válida (empieza con G y pasa el checksum).`
+      );
     }
-    if (this.contacts.some((c) => c.publicKey === publicKey)) {
+    if (this.contacts.some((c) => c.publicKey === pk)) {
       throw new Error("Contact already exists");
     }
     const contact: Contact = {
       id: uid("c_"),
       name: name.trim(),
-      publicKey: publicKey.trim(),
+      publicKey: pk,
       note,
       createdAt: new Date().toISOString(),
     };
