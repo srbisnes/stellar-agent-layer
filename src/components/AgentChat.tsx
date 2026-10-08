@@ -59,12 +59,18 @@ export function AgentChat({ onUpdate }: Props) {
     if (lower.includes("agrega") && lower.includes("contacto")) {
       const match = text.match(/llamad[oa]\s+(\w+)/i) || text.match(/contacto\s+(\w+)/i);
       const name = match?.[1] || "Alice";
-      // Demo key – user should replace
+      // Use a valid Testnet public key (project demo account) so the full flow works
+      const DEMO_PK = "GAI663ZTGAFE6CIH6PSCC5XCFFMOLGCPUIHO25LVWMEDB3MD2J2Y7VFP";
       try {
-        contactEngine.add(name, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+        contactEngine.add(name, DEMO_PK, "Agregado por el agente (clave de demo Testnet)");
         onUpdate();
-        return `✅ Contacto “${name}” agregado (clave demo). Reemplazala por una real de testnet.`;
+        return `✅ Contacto “${name}” agregado con clave válida de Testnet.\nPublic key: ${DEMO_PK}\nPodés reemplazarla desde el panel de Contactos si querés otra.`;
       } catch (e: any) {
+        // Already exists → still success for demo UX
+        if (String(e.message).includes("already exists")) {
+          onUpdate();
+          return `✅ El contacto “${name}” ya estaba en tu agenda.`;
+        }
         return e.message;
       }
     }
